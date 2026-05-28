@@ -1,0 +1,21 @@
+# LoRA adapter — fetched from the HF model repo on demand via scripts/fetch_bundled_lora.sh.
+# Lives entirely outside source control.
+miscs/linear_spec_lora/
+*.safetensors
+
+# Python cruft
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+
+# Editor / OS
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Eval outputs (these go to $OUT_DIR by default)
+eval_suit_results/
+*.log

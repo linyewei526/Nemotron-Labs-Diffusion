@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nemotron-Labs-Diffusion-8B</title>
+<style>
+  :root {
+    --bg: #000;
+    --bg-elev: #0c0c0d;
+    --bg-input: #161618;
+    --border: #1f2025;
+    --border-soft: #161618;
+    --text: #ececf1;
+    --text-soft: #c5c5d0;
+    --muted: #6e6e80;
+    --accent: #19c37d;
+    --accent-2: #f2b84b;
+    --user: #2a2b32;
+    --asst: transparent;
+    --ok: #5fd9a5;
+    --warn: #ffc25f;
+    --err: #ff6e7a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display",
+          "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { display: flex; flex-direction: column; }
+
+  /* ---------- Top bar ---------- */
+  header.bar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--bg);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, var(--accent-2) 70%);
+    box-shadow: 0 0 18px rgba(25,195,125,0.35);
+  }
+  .brand h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .spacer { flex: 1; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 999px; font-size: 12px;
+    background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-soft);
+  }
+  .pill .k { color: var(--muted); }
+  .pill.ok   { color: var(--ok); border-color: rgba(95,217,165,0.30); }
+  .pill.warn { color: var(--warn); border-color: rgba(255,194,95,0.30); }
+  .pill.err  { color: var(--err); border-color: rgba(255,110,122,0.30); }
+
+  .iconbtn {
+    background: var(--bg-elev); border: 1px solid var(--border);
+    color: var(--text-soft); border-radius: 8px;
+    width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .iconbtn:hover { background: #1a1a1c; color: var(--text); }
+
+  /* ---------- Main chat area ---------- */
+  main {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+  }
+  #chat {
+    width: 100%; max-width: 820px; margin: 0 auto; padding: 32px 24px 200px;
+    flex: 1;
+  }
+  .empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 60vh; gap: 14px; color: var(--muted);
+  }
+  .empty .big {
+    font-size: 38px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .empty .hint { font-size: 14px; text-align: center; }
+  .suggestions {
+    display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 10px; margin-top: 16px; max-width: 640px; width: 100%;
+  }
+  .suggestion {
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; cursor: pointer; text-align: left;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .suggestion:hover { border-color: #2c2d34; background: #131316; }
+  .suggestion .title { color: var(--text); font-size: 14px; font-weight: 500; }
+  .suggestion .desc { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  .msg {
+    display: flex; gap: 14px; margin: 22px 0; align-items: flex-start;
+  }
+  .msg .avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; user-select: none;
+  }
+  .msg.user .avatar { background: #444653; color: var(--text); }
+  .msg.asst .avatar {
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, var(--accent-2) 80%);
+    color: #000;
+  }
+  .msg .body {
+    flex: 1; min-width: 0; font-size: 16px; line-height: 1.65;
+    color: var(--text);
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg .meta {
+    color: var(--muted); font-size: 11.5px; margin-top: 8px;
+    display: flex; gap: 14px; flex-wrap: wrap; font-variant-numeric: tabular-nums;
+  }
+  .msg .meta b { color: var(--text-soft); font-weight: 500; }
+  .cursor::after {
+    content: "▍"; color: var(--accent); animation: blink 1s steps(1) infinite;
+    margin-left: 2px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- Composer ---------- */
+  .composer-wrap {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(180deg, transparent 0%, var(--bg) 30%);
+    padding: 18px 16px 22px;
+    z-index: 4;
+  }
+  .composer {
+    max-width: 820px; margin: 0 auto;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 12px 14px 12px 18px;
+    display: flex; align-items: flex-end; gap: 10px;
+    transition: border-color 0.12s ease;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 16px 32px -16px rgba(0,0,0,0.6);
+  }
+  .composer:focus-within { border-color: #303137; }
+  #prompt {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font: inherit; font-size: 16px; line-height: 1.55;
+    resize: none; padding: 6px 0;
+    min-height: 28px; max-height: 200px;
+  }
+  #prompt::placeholder { color: var(--muted); }
+  .composer .send {
+    background: var(--text); color: #000;
+    border: none; border-radius: 10px;
+    width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; flex-shrink: 0;
+    transition: background 0.12s ease, transform 0.06s ease;
+  }
+  .composer .send:hover:not(:disabled) { background: #fff; }
+  .composer .send:active:not(:disabled) { transform: translateY(1px); }
+  .composer .send:disabled { background: #2a2b32; color: var(--muted); cursor: not-allowed; }
+  .composer .stop {
+    background: #b34352; color: #fff;
+  }
+  .composer .stop:hover { background: #c5505f; }
+  .composer-hint {
+    max-width: 820px; margin: 8px auto 0;
+    color: var(--muted); font-size: 11px; text-align: center;
+  }
+
+  /* ---------- Settings drawer ---------- */
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 360px;
+    background: var(--bg-elev); border-left: 1px solid var(--border);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    z-index: 10; overflow-y: auto;
+    padding: 22px 22px 32px;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--text); letter-spacing: 0.01em; }
+  .drawer .group { margin-bottom: 22px; }
+  .drawer .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .drawer .textbtn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-soft);
+    border-radius: 8px; min-height: 34px; padding: 0 12px; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .drawer .textbtn:hover { color: var(--text); background: #131316; }
+  .drawer .preset-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .drawer .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .drawer .launch-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; color: var(--text-soft); font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; user-select: all;
+  }
+  .drawer label.row {
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
+    gap: 8px; margin: 10px 0; font-size: 13px; color: var(--text-soft);
+  }
+  .drawer label.row .v { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; font-size: 12px; }
+  .drawer input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .drawer input[type="text"], .drawer input[type="number"], .drawer textarea, .drawer select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px;
+  }
+  .drawer input[type="checkbox"] { accent-color: var(--accent); }
+  .drawer .close {
+    position: absolute; top: 14px; right: 14px;
+    background: transparent; border: none; color: var(--muted);
+    font-size: 22px; cursor: pointer; padding: 4px;
+  }
+  .drawer .close:hover { color: var(--text); }
+  .scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s ease;
+    z-index: 9;
+  }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+
+  /* ---------- Connection banner ---------- */
+  .conn-banner {
+    background: #1c0d10; border: 1px solid #4d1f25; border-radius: 12px;
+    padding: 14px 18px; color: var(--err); font-size: 13.5px;
+    max-width: 820px; margin: 14px auto 0;
+  }
+  .conn-banner h3 { margin: 0 0 6px; font-size: 14px; color: var(--err); font-weight: 600; }
+  .conn-banner pre {
+    background: #000; color: var(--text); border: 1px solid #4d1f25; border-radius: 8px;
+    padding: 9px 12px; font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+    font-size: 12.5px; margin: 8px 0; user-select: all; cursor: text;
+  }
+  .conn-banner.hidden { display: none; }
+
+  code { font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 0.92em; color: var(--text-soft); }
+
+  @media (max-width: 720px) {
+    header.bar { padding: 12px 16px; gap: 8px; }
+    #chat { padding: 24px 16px 180px; }
+    .composer-wrap { padding: 14px 12px 18px; }
+    .drawer { width: 100%; }
+    .empty .big { font-size: 28px; }
+    .suggestions { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>Nemotron-Labs-Diffusion-8B</h1>
+      <div class="sub" id="brand-sub">SGLang · Linear Self-Spec</div>
+    </div>
+  </div>
+  <span class="spacer"></span>
+  <span id="last-stats" class="pill"></span>
+  <button class="iconbtn" id="settings-btn" title="Settings" aria-label="Settings">⚙</button>
+  <button class="iconbtn" id="new-chat-btn" title="New chat" aria-label="New chat">＋</button>
+</header>
+
+<main>
+  <div id="conn-banner" class="conn-banner hidden">
+    <h3>Can't reach the server</h3>
+    <div>Open an SSH tunnel to the Spark, then try again:</div>
+    <pre>ssh -L 30000:localhost:30000 user@&lt;spark-host&gt;</pre>
+  </div>
+
+  <section id="chat" aria-live="polite">
+    <div class="empty" id="empty">
+      <div class="big">Ask anything.</div>
+      <div class="hint">Nemotron-Labs-Diffusion serving with self-speculation.</div>
+      <div class="suggestions">
+        <div class="suggestion" data-prompt="Convert these temperatures from Celsius to Fahrenheit, one per line: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100. Use the formula F = C × 9/5 + 32 and show the substitution for each.">
+          <div class="title">Hot prompt</div>
+          <div class="desc">Celsius → Fahrenheit table (high-acceptance demo)</div>
+        </div>
+        <div class="suggestion" data-prompt="List the first 30 prime numbers, one per line in the format 'P_N = V'. Then state the sum.">
+          <div class="title">Primes</div>
+          <div class="desc">Predictable list, watch the speedup</div>
+        </div>
+        <div class="suggestion" data-prompt="Solve x^2 - 5x + 6 = 0 using the quadratic formula. Show every step. Then verify both roots by substitution.">
+          <div class="title">Quadratic</div>
+          <div class="desc">Algebra with full working</div>
+        </div>
+        <div class="suggestion" data-prompt="Do you know Stephen Curry?">
+          <div class="title">Open-ended</div>
+          <div class="desc">A regular prose prompt for comparison</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="composer-wrap">
+  <div class="composer">
+    <textarea id="prompt" placeholder="Message Nemotron…" rows="1"></textarea>
+    <button id="send-btn" class="send" title="Send" aria-label="Send">↑</button>
+  </div>
+  <div class="composer-hint">Enter to send · Shift+Enter for newline</div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <button class="close" id="drawer-close" aria-label="Close settings">×</button>
+  <h3 style="margin-top: 8px;">Settings</h3>
+
+  <div class="group">
+    <h3>Server</h3>
+    <label class="row">Base URL <span></span></label>
+    <input type="text" id="base-url" value="http://localhost:30000">
+    <div style="font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.6;">
+      Default points at the local port. For a remote Spark, open a tunnel<br>
+      <code>ssh -L 30000:localhost:30000 user@&lt;spark-host&gt;</code> and keep this URL.
+    </div>
+    <div class="button-row"><button id="ping-btn" class="textbtn">Check connection</button></div>
+  </div>
+
+  <div class="group">
+    <h3>Sampling</h3>
+    <label class="row">Temperature <span class="v" id="temp-v">0.00</span></label>
+    <input type="range" id="temp" min="0" max="2" step="0.05" value="0">
+    <label class="row">Top-p <span class="v" id="topp-v">1.00</span></label>
+    <input type="range" id="topp" min="0.05" max="1" step="0.01" value="1">
+    <label class="row">Top-k <span class="v" id="topk-v">-1</span></label>
+    <input type="range" id="topk" min="-1" max="200" step="1" value="-1">
+    <label class="row">Max new tokens <span class="v" id="maxtok-v">8192</span></label>
+    <input type="range" id="maxtok" min="64" max="32768" step="64" value="8192">
+    <label class="row">Repetition penalty <span class="v" id="rep-v">1.00</span></label>
+    <input type="range" id="rep" min="1" max="1.5" step="0.01" value="1">
+    <div class="preset-row">
+      <button class="textbtn" data-preset="precise">Precise</button>
+      <button class="textbtn" data-preset="balanced">Balanced</button>
+      <button class="textbtn" data-preset="creative">Creative</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Advanced</h3>
+    <div class="control-grid">
+      <label class="row" style="grid-template-columns: 1fr;">Seed
+        <input type="number" id="seed" placeholder="random">
+      </label>
+      <label class="row" style="grid-template-columns: 1fr;">Stop text
+        <input type="text" id="stop" placeholder="optional">
+      </label>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Chat</h3>
+    <label class="row"><span>Streaming</span><input type="checkbox" id="stream" checked></label>
+    <label class="row"><span>Multi-turn (send history)</span><input type="checkbox" id="multiturn" checked></label>
+    <label class="row"><span>Show per-message timing</span><input type="checkbox" id="show-timing" checked></label>
+    <label class="row" style="grid-template-columns: 1fr; margin-top: 10px;">System prompt</label>
+    <textarea id="sysprompt" rows="3" placeholder="(optional)"></textarea>
+  </div>
+
+  <div class="group">
+    <h3>Server info</h3>
+    <div id="server-info" style="font-size: 12px; color: var(--muted); line-height: 1.7;"></div>
+  </div>
+
+  <div class="group">
+    <h3>Actions</h3>
+    <div class="button-row">
+      <button id="retry-btn" class="textbtn">Retry last</button>
+      <button id="copy-last" class="textbtn">Copy last</button>
+      <button id="export-chat" class="textbtn">Export chat</button>
+    </div>
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
+  return e;
+};
+const fmt = (x, d = 2) => (x == null || isNaN(x)) ? "—" : Number(x).toFixed(d);
+function downloadText(name, text, type = "text/plain") {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  a.remove();
+}
+
+// ---- ranges → display ----
+[["temp", v => Number(v).toFixed(2)], ["topp", v => Number(v).toFixed(2)], ["topk", v => v], ["maxtok", v => v], ["rep", v => Number(v).toFixed(2)]]
+  .forEach(([id, fn]) => {
+    const i = $("#" + id), o = $("#" + id + "-v");
+    const u = () => o.textContent = fn(i.value);
+    i.addEventListener("input", u); u();
+  });
+
+// ---- state ----
+const state = { history: [], controller: null, serverInfo: null, lastUserText: "" };
+
+function setLastStats(text, kind = "") {
+  const p = $("#last-stats");
+  if (!text) { p.style.display = "none"; return; }
+  p.style.display = "inline-flex";
+  p.className = "pill" + (kind ? " " + kind : "");
+  p.textContent = text;
+}
+setLastStats(null);
+
+function showBanner() { $("#conn-banner").classList.remove("hidden"); }
+function hideBanner() { $("#conn-banner").classList.add("hidden"); }
+function classifyErr(e) {
+  const msg = (e && e.message) || String(e);
+  if (/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION/i.test(msg))
+    return { kind: "unreachable", hint: "tunnel down" };
+  return { kind: "other", hint: msg };
+}
+
+// ---- chat rendering ----
+function clearEmpty() { const e = $("#empty"); if (e) e.remove(); }
+function addMsg(role, content = "") {
+  clearEmpty();
+  const wrap = el("div", { class: "msg " + role });
+  const avatar = el("div", { class: "avatar" }, role === "user" ? "You" : "N");
+  const body = el("div", { class: "body" }, content);
+  wrap.appendChild(avatar);
+  wrap.appendChild(body);
+  $("#chat").appendChild(wrap);
+  scrollEnd();
+  return { wrap, body };
+}
+function scrollEnd() {
+  const main = document.querySelector("main");
+  main.scrollTop = main.scrollHeight;
+}
+
+// ---- server probes ----
+// Silent: only show the conn-banner on failure, no always-on status pill.
+async function ping() {
+  const base = $("#base-url").value.replace(/\/$/, "");
+  try {
+    const r = await fetch(base + "/health");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    hideBanner();
+    await fetchInfo(base);
+  } catch (e) {
+    const c = classifyErr(e);
+    if (c.kind === "unreachable") showBanner();
+  }
+}
+async function fetchInfo(base) {
+  try {
+    const r = await fetch(base + "/get_server_info");
+    if (!r.ok) return;
+    const info = await r.json();
+    state.serverInfo = info;
+    const algo = info.dllm_algorithm || info.server_args?.dllm_algorithm || "?";
+    const quant = info.quantization || info.server_args?.quantization || "bf16";
+    const model = info.model_path || info.served_model_name || "?";
+    const ar = (info.json_model_override_args || info.server_args?.json_model_override_args || "");
+    const isAr = /ar_mode["']?\s*:\s*true/.test(JSON.stringify(ar));
+    const modeLabel = isAr ? "AR" : (algo === "LinearSpec" ? "Linear Self-Spec" : algo);
+    $("#brand-sub").textContent = `SGLang · ${modeLabel} · ${(quant || "bf16").toUpperCase()}`;
+    $("#server-info").innerHTML = `
+      <div><b>model</b> · ${model}</div>
+      <div><b>algorithm</b> · ${algo}</div>
+      <div><b>quantization</b> · ${quant || "bf16"}</div>
+      <div><b>ar_mode</b> · ${isAr ? "true" : "false"}</div>
+    `;
+  } catch (_) {}
+}
+
+// ---- send ----
+function buildBody(modelId) {
+  const sys = $("#sysprompt").value.trim();
+  const stream = $("#stream").checked;
+  const multiturn = $("#multiturn").checked;
+  const body = {
+    model: modelId || "default",
+    temperature: parseFloat($("#temp").value),
+    top_p: parseFloat($("#topp").value),
+    max_tokens: parseInt($("#maxtok").value, 10),
+    stream,
+  };
+  if (stream) body.stream_options = { include_usage: true };
+  const topk = parseInt($("#topk").value, 10);
+  if (topk > 0) body.top_k = topk;
+  const rep = parseFloat($("#rep").value);
+  if (rep > 1) body.repetition_penalty = rep;
+  const seed = $("#seed").value.trim();
+  if (seed) body.seed = parseInt(seed, 10);
+  const stop = $("#stop").value.trim();
+  if (stop) body.stop = stop.includes("\\n") ? stop.split("\\n").filter(Boolean) : stop;
+  const msgs = [];
+  if (sys) msgs.push({ role: "system", content: sys });
+  if (multiturn) for (const m of state.history) msgs.push({ role: m.role, content: m.content });
+  else { const last = state.history.filter(m => m.role === "user").slice(-1)[0]; if (last) msgs.push(last); }
+  body.messages = msgs;
+  return body;
+}
+
+async function send(textOverride) {
+  const input = $("#prompt");
+  const text = (textOverride ?? input.value).trim();
+  if (!text) return;
+  if (!textOverride) input.value = "";
+  resizeInput();
+  $("#send-btn").disabled = true;
+  $("#send-btn").className = "send stop";
+  $("#send-btn").textContent = "■";
+  $("#send-btn").title = "Stop";
+  $("#send-btn").onclick = () => state.controller?.abort();
+
+  state.lastUserText = text;
+  state.history.push({ role: "user", content: text });
+  addMsg("user", text);
+  const asst = addMsg("asst", "");
+  asst.body.classList.add("cursor");
+
+  const base = $("#base-url").value.replace(/\/$/, "");
+  let modelId = state.serverInfo?.model_path || "default";
+  if (!state.serverInfo) {
+    try {
+      const r = await fetch(base + "/v1/models");
+      const j = await r.json();
+      if (j.data?.[0]) modelId = j.data[0].id;
+    } catch (_) {}
+  }
+
+  const body = buildBody(modelId);
+  const ctrl = new AbortController();
+  state.controller = ctrl;
+  const t0 = performance.now();
+  let completionTokens = null, firstTokenAt = null, deltaChunks = 0;
+
+  try {
+    const r = await fetch(base + "/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status + ": " + (await r.text()).slice(0, 200));
+
+    if (body.stream) {
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line.startsWith("data:")) continue;
+          const p = line.slice(5).trim();
+          if (p === "[DONE]") continue;
+          try {
+            const j = JSON.parse(p);
+            if (j.usage) completionTokens = j.usage.completion_tokens;
+            const d = j.choices?.[0]?.delta?.content ?? j.choices?.[0]?.text ?? "";
+            if (d) {
+              if (firstTokenAt === null) firstTokenAt = performance.now();
+              asst.body.appendChild(document.createTextNode(d));
+              deltaChunks++;
+              scrollEnd();
+            }
+          } catch (_) {}
+        }
+      }
+    } else {
+      const j = await r.json();
+      asst.body.textContent = j.choices?.[0]?.message?.content ?? j.choices?.[0]?.text ?? "";
+      completionTokens = j.usage?.completion_tokens ?? null;
+    }
+  } catch (e) {
+    if (e.name === "AbortError") asst.body.appendChild(document.createTextNode("\n[aborted]"));
+    else {
+      const c = classifyErr(e);
+      asst.body.textContent = c.kind === "unreachable" ? "Server unreachable. Open the SSH tunnel and try again." : ("Error: " + e.message);
+      if (c.kind === "unreachable") showBanner();
+    }
+  } finally {
+    asst.body.classList.remove("cursor");
+    state.controller = null;
+    $("#send-btn").disabled = false;
+    $("#send-btn").className = "send";
+    $("#send-btn").textContent = "↑";
+    $("#send-btn").title = "Send";
+    $("#send-btn").onclick = () => send();
+  }
+
+  const dt = (performance.now() - t0) / 1000;
+  state.history.push({ role: "assistant", content: asst.body.textContent });
+
+  if ($("#show-timing").checked) {
+    const meta = el("div", { class: "meta" });
+    meta.appendChild(el("span", {}, `${fmt(dt, 2)}s`));
+    if (firstTokenAt !== null) meta.appendChild(el("span", {}, `TTFT ${fmt((firstTokenAt - t0) / 1000, 2)}s`));
+    let acceptLen = null;
+    if (completionTokens != null) {
+      meta.appendChild(el("span", {}, `${completionTokens} tok`));
+      const decodeT = firstTokenAt !== null ? (performance.now() - firstTokenAt) / 1000 : dt;
+      meta.appendChild(el("span", {}, `${fmt(completionTokens / decodeT, 1)} tok/s`));
+      // Acceptance length = avg tokens delivered per SSE chunk.
+      // For LinearSpec, one chunk == one draft+verify block, so this is the
+      // average # of draft tokens accepted by the verify pass.
+      if (deltaChunks > 0) {
+        acceptLen = completionTokens / deltaChunks;
+        meta.appendChild(el("span", {}, `acceptance length ${fmt(acceptLen, 2)}`));
+      }
+    }
+    asst.wrap.appendChild(meta);
+    if (completionTokens != null) {
+      const decodeT = firstTokenAt !== null ? (performance.now() - firstTokenAt) / 1000 : dt;
+      const parts = [
+        `${completionTokens} tok`,
+        `${fmt(completionTokens / decodeT, 1)} tok/s`,
+      ];
+      if (acceptLen != null) parts.push(`acceptance length ${fmt(acceptLen, 2)}`);
+      setLastStats(parts.join(" · "), "ok");
+    } else {
+      setLastStats(`${fmt(dt, 2)}s`, "ok");
+    }
+  }
+}
+
+// ---- wiring ----
+$("#send-btn").onclick = () => send();
+$("#new-chat-btn").onclick = () => {
+  state.history.length = 0;
+  $("#chat").innerHTML = "";
+  // restore empty state
+  location.reload();  // simplest: re-render the suggestions
+};
+$("#settings-btn").onclick = () => { $("#drawer").classList.add("open"); $("#scrim").classList.add("show"); };
+$("#drawer-close").onclick = () => { $("#drawer").classList.remove("open"); $("#scrim").classList.remove("show"); };
+$("#scrim").onclick = () => { $("#drawer").classList.remove("open"); $("#scrim").classList.remove("show"); };
+$("#ping-btn").onclick = ping;
+
+function setRange(id, value) {
+  const input = $("#" + id);
+  input.value = value;
+  input.dispatchEvent(new Event("input"));
+}
+const presets = {
+  precise:  { temp: 0,    topp: 1,    topk: -1, maxtok: 512,  rep: 1 },
+  balanced: { temp: 0.35, topp: 0.9,  topk: 50, maxtok: 1024, rep: 1.02 },
+  creative: { temp: 0.8,  topp: 0.95, topk: 80, maxtok: 1536, rep: 1.05 },
+};
+$$("[data-preset]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = presets[btn.dataset.preset];
+    if (!p) return;
+    Object.entries(p).forEach(([id, value]) => setRange(id, value));
+  });
+});
+$("#retry-btn").onclick = () => {
+  if (!state.lastUserText || state.controller) return;
+  if (state.history.at(-1)?.role === "assistant") state.history.pop();
+  if (state.history.at(-1)?.role === "user" && state.history.at(-1).content === state.lastUserText) state.history.pop();
+  send(state.lastUserText);
+};
+$("#copy-last").onclick = async () => {
+  const last = state.history.filter(m => m.role === "assistant").at(-1);
+  if (last) await navigator.clipboard.writeText(last.content);
+};
+$("#export-chat").onclick = () => {
+  downloadText("nemotron-diffusion-chat.json", JSON.stringify({
+    exported_at: new Date().toISOString(),
+    server: $("#base-url").value,
+    server_info: state.serverInfo,
+    messages: state.history,
+  }, null, 2), "application/json");
+};
+
+$("#prompt").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+function resizeInput() {
+  const t = $("#prompt");
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight, 200) + "px";
+}
+$("#prompt").addEventListener("input", resizeInput);
+
+// Suggestion clicks
+document.querySelectorAll(".suggestion").forEach(s => {
+  s.addEventListener("click", () => send(s.dataset.prompt));
+});
+
+ping();
+</script>
+</body>
+</html>
