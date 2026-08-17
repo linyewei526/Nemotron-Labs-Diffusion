@@ -1,7 +1,7 @@
 # Serving Nemotron-Labs-Diffusion with SGLang on a DGX Spark
 
 Step-by-step guide to deploy
-[`nvidia/Nemotron-Labs-Diffusion-8B`](https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-8B)
+[`/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`](https://huggingface.co//data1/linyewei/models/Nemotron-Labs-Diffusion-8B)
 with the **Linear self-speculation** drafter (LoRA-enhanced) and **FP8**
 weight quantization on a DGX Spark, plus a single-file HTML chat client.
 
@@ -14,7 +14,7 @@ changes are needed beyond a one-line patch noted in Step 2.
 ## What you get
 
 - OpenAI-compatible chat server on port 30000 serving
-  `nvidia/Nemotron-Labs-Diffusion-8B`.
+  `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`.
 - Default config: **Linear self-spec** drafter + LoRA-enhanced draft pass +
   online BF16 → FP8 weight quantization.
 - A black-themed single-file HTML client (`index.html`) with sliders for
@@ -70,8 +70,8 @@ Two files; download both:
 ```bash
 mkdir -p ~/sglang_dllm/linear_spec_lora
 cd ~/sglang_dllm/linear_spec_lora
-curl -fsSL -O https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-8B/resolve/main/linear_spec_lora/adapter_config.json
-curl -fsSL -O https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-8B/resolve/main/linear_spec_lora/adapter_model.safetensors
+curl -fsSL -O https://huggingface.co//data1/linyewei/models/Nemotron-Labs-Diffusion-8B/resolve/main/linear_spec_lora/adapter_config.json
+curl -fsSL -O https://huggingface.co//data1/linyewei/models/Nemotron-Labs-Diffusion-8B/resolve/main/linear_spec_lora/adapter_model.safetensors
 ```
 
 ## Step 4 — Pull the SGLang container image
@@ -129,7 +129,7 @@ curl -fsS http://localhost:30000/health
 curl -sS http://localhost:30000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "nvidia/Nemotron-Labs-Diffusion-8B",
+    "model": "/data1/linyewei/models/Nemotron-Labs-Diffusion-8B",
     "messages": [{"role": "user", "content": "What is 15% of 240?"}],
     "max_tokens": 256,
     "temperature": 0
@@ -198,6 +198,6 @@ Other env knobs (see the script header for the full list):
 | `MEM_FRAC`    | `0.5`               | Fraction of GPU memory for KV cache + weights. |
 | `MAX_REQS`    | `2`                 | Max concurrent requests. |
 | `PORT`        | `30000`             | OpenAI-compatible server port. |
-| `MODEL`       | `nvidia/Nemotron-Labs-Diffusion-8B` | HF id or local path. |
+| `MODEL`       | `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B` | HF id or local path. |
 | `LORA_MODE`   | `draft_only`        | `both` applies LoRA on draft + verify. |
 | `WORK_DIR`    | `$HOME/sglang_dllm` | Where weights / logs / JIT cache live. |

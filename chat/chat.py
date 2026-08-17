@@ -1,9 +1,9 @@
 """Interactive chat with a Nemotron-Labs diffusion-LM, mirroring the snippets
-in the HF model card (https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-8B).
+in the HF model card (https://huggingface.co//data1/linyewei/models/Nemotron-Labs-Diffusion-8B).
 
 Usage:
     python chat.py --mode {ar|dlm|linear_spec|linear_spec_lora}
-                   [--model nvidia/Nemotron-Labs-Diffusion-8B]
+                   [--model /data1/linyewei/models/Nemotron-Labs-Diffusion-8B]
                    [--max-new-tokens 512]
                    [--block-length 32]
                    [--threshold 0.9]
@@ -30,7 +30,7 @@ from transformers import AutoModel, AutoTokenizer
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--mode", required=True, choices=["ar", "dlm", "linear_spec", "linear_spec_lora"])
-    p.add_argument("--model", default="nvidia/Nemotron-Labs-Diffusion-8B")
+    p.add_argument("--model", default="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B")
     p.add_argument("--max-new-tokens", type=int, default=512)
     p.add_argument("--block-length", type=int, default=32, help="dLM / linear_spec block size")
     p.add_argument("--threshold", type=float, default=0.9, help="dLM confidence threshold")

@@ -73,7 +73,7 @@ if [[ -z "${CONTAINER_IMAGE:-}" ]]; then
 fi
 
 # ─── Default model / tokenizer ─────────────────────────────────────────────
-DEFAULT_MODEL="nvidia/Nemotron-Labs-Diffusion-8B"
+DEFAULT_MODEL="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
 # Empty = use the tokenizer bundled with --model on HF.
 DEFAULT_TOKENIZER=""
 
@@ -153,6 +153,16 @@ Generation knobs (defaults vary per --mode):
   --enable-thinking BOOL   Enable model "thinking" mode (default: false)
   --no-eos-early-stop      Disable SERVER_EOS_EARLY_STOP (default: enabled)
 
+LLM judge (used by Arena-Hard and MT-Bench):
+  --judge-model NAME       Override the default GPT-4.1 judge
+  --judge-server-address URL
+                           Override the default https://api.openai.com/v1 endpoint
+  --judge-server-type TYPE Judge server type (currently openai-compatible)
+  --judge-concurrency N    Concurrent MT-Bench judge requests (default: 4)
+  --mt-bench-max-tokens N  Completion budget per MT-Bench turn (default: 1024)
+  --skip-judge-api-key-check
+                           Skip the host-side OPENAI_API_KEY preflight check
+
 SLURM:
   --gpus N                 GPUs per job (default per-mode)
   --partition LIST         SLURM partition (default: batch,backfill)
@@ -172,7 +182,7 @@ Examples:
   bash $0 --mode dlm --benchmarks gsm8k:1
 
   # AR mode on a different model
-  bash $0 --mode ar --model nvidia/Nemotron-Labs-Diffusion-8B --benchmarks gsm8k:1
+  bash $0 --mode ar --model /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --benchmarks gsm8k:1
 
   # linear self-spec WITH LoRA
   bash $0 --mode linear_spec --lora --benchmarks gsm8k:1
@@ -199,6 +209,12 @@ MAX_POS_EMB_ARG=""
 BATCH_SIZE_ARG=""
 ENABLE_THINKING="false"
 EOS_EARLY_STOP="true"
+JUDGE_MODEL=""
+JUDGE_SERVER_ADDRESS=""
+JUDGE_SERVER_TYPE=""
+JUDGE_CONCURRENCY="4"
+MT_BENCH_MAX_TOKENS="1024"
+SKIP_JUDGE_API_KEY_CHECK="false"
 GPUS_ARG=""
 PARTITION="${SERVER_PARTITION:-batch,backfill}"
 ACCOUNT_ARG="${ACCOUNT:-}"
@@ -228,6 +244,12 @@ while [[ $# -gt 0 ]]; do
         --batch-size)         BATCH_SIZE_ARG="$2"; shift 2 ;;
         --enable-thinking)    ENABLE_THINKING="$2"; shift 2 ;;
         --no-eos-early-stop)  EOS_EARLY_STOP="false"; shift 1 ;;
+        --judge-model)        JUDGE_MODEL="$2"; shift 2 ;;
+        --judge-server-address) JUDGE_SERVER_ADDRESS="$2"; shift 2 ;;
+        --judge-server-type)  JUDGE_SERVER_TYPE="$2"; shift 2 ;;
+        --judge-concurrency)  JUDGE_CONCURRENCY="$2"; shift 2 ;;
+        --mt-bench-max-tokens) MT_BENCH_MAX_TOKENS="$2"; shift 2 ;;
+        --skip-judge-api-key-check) SKIP_JUDGE_API_KEY_CHECK="true"; shift 1 ;;
         --gpus)               GPUS_ARG="$2"; shift 2 ;;
         --partition)          PARTITION="$2"; shift 2 ;;
         --account)            ACCOUNT_ARG="$2"; shift 2 ;;
@@ -270,6 +292,43 @@ DEFAULT_BENCHMARKS="gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime24:1,aime25:1,gpq
 BENCHMARKS_LIST="${BENCHMARKS_LIST:-$DEFAULT_BENCHMARKS}"
 IFS=',' read -ra BENCHMARK_GROUPS <<< "$BENCHMARKS_LIST"
 
+arena_hard_requested() {
+    local spec name
+    for spec in "${BENCHMARK_GROUPS[@]}"; do
+        spec="${spec//[[:space:]]/}"
+        name="${spec%%:*}"
+        [[ "$name" == "arena-hard" || "$name" == "arena-hard-v2" ]] && return 0
+    done
+    return 1
+}
+
+mt_bench_requested() {
+    local spec name
+    for spec in "${BENCHMARK_GROUPS[@]}"; do
+        spec="${spec//[[:space:]]/}"
+        name="${spec%%:*}"
+        [[ "$name" == "mt-bench" ]] && return 0
+    done
+    return 1
+}
+
+judge_benchmark_requested() {
+    arena_hard_requested || mt_bench_requested
+}
+
+[[ "$JUDGE_CONCURRENCY" =~ ^[1-9][0-9]*$ ]] || {
+    echo "ERROR: --judge-concurrency must be a positive integer" >&2
+    exit 1
+}
+[[ "$MT_BENCH_MAX_TOKENS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "ERROR: --mt-bench-max-tokens must be a positive integer" >&2
+    exit 1
+}
+if mt_bench_requested && [[ -n "$JUDGE_SERVER_TYPE" && "$JUDGE_SERVER_TYPE" != "openai" ]]; then
+    echo "ERROR: MT-Bench currently supports only an OpenAI-compatible judge endpoint." >&2
+    exit 1
+fi
+
 # LoRA
 if [[ "$MODE" == "linear_spec" ]]; then
     USE_LORA="${USE_LORA:-false}"
@@ -293,6 +352,15 @@ _pick_container_image "$USE_LORA"
 # Strict checks: real submissions need a valid image and a SLURM account.
 # Dry-run stays permissive so users can preview settings on any host.
 if [[ "$DRY_RUN" != true ]]; then
+    if judge_benchmark_requested \
+        && [[ "$SKIP_JUDGE_API_KEY_CHECK" != "true" ]] \
+        && { [[ -z "$JUDGE_SERVER_ADDRESS" ]] || [[ "${JUDGE_SERVER_ADDRESS,,}" == *"api.openai.com"* ]]; } \
+        && [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        echo "ERROR: The requested judge-based benchmark defaults to GPT-4.1 on OpenAI, but OPENAI_API_KEY is not set." >&2
+        echo "       Export OPENAI_API_KEY, pass a custom --judge-server-address, or use" >&2
+        echo "       --skip-judge-api-key-check when credentials are injected in the container." >&2
+        exit 1
+    fi
     _require_container_image
     if [[ -z "$ACCOUNT_ARG" ]]; then
         echo "" >&2
@@ -357,6 +425,16 @@ echo "  Time:             $TIME_ARG"
 echo "  Container image:  ${CONTAINER_IMAGE:-(unset — set CONTAINER_IMAGE or use evaluate.py)}"
 echo "  Output base:      $OUT_DIR"
 echo "  Benchmarks:       ${BENCHMARK_GROUPS[*]}"
+if arena_hard_requested; then
+    echo "  Arena judge:      ${JUDGE_MODEL:-gpt-4.1 (dataset default)}"
+    echo "  Judge endpoint:   ${JUDGE_SERVER_ADDRESS:-https://api.openai.com/v1 (dataset default)}"
+    echo "  Judge type:       ${JUDGE_SERVER_TYPE:-openai (dataset default)}"
+fi
+if mt_bench_requested; then
+    echo "  MT-Bench judge:   ${JUDGE_MODEL:-gpt-4.1}"
+    echo "  MT max tokens:    $MT_BENCH_MAX_TOKENS per turn"
+    echo "  Judge concurrency: $JUDGE_CONCURRENCY"
+fi
 echo "================================================================"
 echo ""
 
@@ -414,12 +492,21 @@ export SEQ_EVAL_STEPS="$STEPS"
 export SEQ_EVAL_BLOCK_LENGTH="$BLOCK_LENGTH"
 export SEQ_EVAL_TEMPERATURE="$TEMPERATURE"
 export SEQ_EVAL_MAX_THINKING_TOKENS="$MAX_THINKING"
+export SEQ_EVAL_JUDGE_MODEL="$JUDGE_MODEL"
+export SEQ_EVAL_JUDGE_SERVER_ADDRESS="$JUDGE_SERVER_ADDRESS"
+export SEQ_EVAL_JUDGE_SERVER_TYPE="$JUDGE_SERVER_TYPE"
+export SEQ_EVAL_JUDGE_CONCURRENCY="$JUDGE_CONCURRENCY"
+export SEQ_EVAL_MT_BENCH_MAX_TOKENS="$MT_BENCH_MAX_TOKENS"
+export SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK="$SKIP_JUDGE_API_KEY_CHECK"
+export SEQ_EVAL_MODEL="$DEF_MODEL_TAG"
+export SEQ_EVAL_CLIENT_CONCURRENCY="$BATCH_SIZE"
 
 # `--strip-thinking` is only meaningful when thinking is on (see legacy scripts).
 STRIP_THINKING_ARG=""
 if [[ "$ENABLE_THINKING" == "true" ]]; then
     STRIP_THINKING_ARG="--strip-thinking"
 fi
+export SEQ_EVAL_STRIP_THINKING="$([[ -n "$STRIP_THINKING_ARG" ]] && echo true || echo false)"
 export SEQ_EVAL_EXTRA_ARGS="--model $DEF_MODEL_TAG ${STRIP_THINKING_ARG}"
 
 # ─── Sweep loop ────────────────────────────────────────────────────────────

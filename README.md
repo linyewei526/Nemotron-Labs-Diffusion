@@ -68,7 +68,7 @@ python chat/chat.py --mode linear_spec_lora --max-new-tokens 1024 --block-length
 ```
 
 All five scripts mirror the snippets from the HF model card; the only logic
-they add is a default `--model nvidia/Nemotron-Labs-Diffusion-8B` and a tiny
+they add is a default `--model /data1/linyewei/models/Nemotron-Labs-Diffusion-8B` and a tiny
 chat-history loop in `chat.py`.
 
 ## Serving on a DGX Spark — SGLang
@@ -76,7 +76,7 @@ chat-history loop in `chat.py`.
 For interactive low-latency serving on a [DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/)
 (or any aarch64 + Blackwell host with Docker), see
 **[sglang_spark/](./sglang_spark/README.md)** — a step-by-step deployment guide
-that brings up `nvidia/Nemotron-Labs-Diffusion-8B` on the SGLang
+that brings up `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B` on the SGLang
 DLLM-onboarding branch with Linear self-speculation + LoRA-enhanced drafter. (The AR/diffusion modes are also supported.)
 
 The SGLang code lives in the upstream PR stack tracked at
@@ -206,7 +206,7 @@ See `bash eval.sh --help`. Most knobs default to per-mode reference values.
 
 | Flag                                                                                  | Purpose                                                          |
 |---------------------------------------------------------------------------------------|------------------------------------------------------------------|
-| `--model HF_ID`                                                                       | HF model id (default: `nvidia/Nemotron-Labs-Diffusion-8B`)       |
+| `--model HF_ID`                                                                       | HF model id (default: `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`)       |
 | `--tokenizer ID_OR_PATH`                                                              | Tokenizer override; default = the one bundled with `--model`     |
 | `--benchmarks "task1:reps,…"`                                                         | Comma-separated NeMo-Skills tasks                                |
 | `--lora` / `--no-lora`                                                                | `linear_spec` only — attach the draft LoRA adapter               |

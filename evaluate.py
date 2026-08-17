@@ -261,7 +261,7 @@ def load(args) -> tuple:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model", default="nvidia/Nemotron-Labs-Diffusion-8B",
+    p.add_argument("--model", default="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B",
                    help="HuggingFace model id (default: %(default)s)")
     p.add_argument("--mode", default="dlm", choices=list(MODE_DEFAULTS.keys()),
                    help="Decoding path: ar | dlm | linear_spec")
@@ -280,7 +280,7 @@ def main() -> None:
     p.add_argument("--max-thinking-tokens", type=int, default=6000)
     p.add_argument("--device", default="cuda")
     p.add_argument("--dtype", default="bf16", choices=["bf16", "fp16", "fp32"])
-    p.add_argument("--print-every", type=int, default=50, help="Progress every N problems")
+    p.add_argument("--print-every", type=int, default=100, help="Progress every N problems")
     p.add_argument("--output", default=None,
                    help="If set, write per-task results to this JSON file")
     args = p.parse_args()

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch SGLang server on a DGX Spark for nvidia/Nemotron-Labs-Diffusion-8B
+# Launch SGLang server on a DGX Spark for /data1/linyewei/models/Nemotron-Labs-Diffusion-8B
 # with the LoRA-enhanced LinearSpec drafter (HF model card recipe).
 #
 # Fork branch: hutm/sglang @ upstream/2-dllm-lora-ar
@@ -40,7 +40,7 @@ FLASHINFER_CACHE=${WORK_DIR}/flashinfer_cache
 
 PORT=${PORT:-30000}
 ALGO=${ALGO:-LinearSpec}
-MODEL=${MODEL:-nvidia/Nemotron-Labs-Diffusion-8B}
+MODEL=${MODEL:-/data1/linyewei/models/Nemotron-Labs-Diffusion-8B}
 CTX_LEN=${CTX_LEN:-2048}
 MEM_FRAC=${MEM_FRAC:-0.5}
 MAX_REQS=${MAX_REQS:-2}

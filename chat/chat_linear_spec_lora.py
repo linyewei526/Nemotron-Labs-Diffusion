@@ -12,7 +12,7 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from peft import PeftModel
 
-REPO = "nvidia/Nemotron-Labs-Diffusion-8B"
+REPO = "/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
 
 tokenizer = AutoTokenizer.from_pretrained(REPO, trust_remote_code=True)
 model = AutoModel.from_pretrained(REPO, trust_remote_code=True).cuda().to(torch.bfloat16)

@@ -10,7 +10,7 @@
 #   bash scripts/fetch_bundled_lora.sh --subfolder linear_spec_lora_v2             # different variant
 set -euo pipefail
 
-MODEL="nvidia/Nemotron-Labs-Diffusion-8B"
+MODEL="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
 SUBFOLDER="linear_spec_lora"
 
 _usage() {

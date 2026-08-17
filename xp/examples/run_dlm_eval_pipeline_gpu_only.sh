@@ -56,7 +56,7 @@ fi
 SERVER_INFO_FILE="${SERVER_INFO_FILE:-}"
 SERVER_BATCH_SIZE="${SERVER_BATCH_SIZE:-1}"
 SERVER_MODEL_PATH="${SERVER_MODEL_PATH:-}"
-SERVER_BASE_MODEL="${SERVER_BASE_MODEL:-nvidia/Nemotron-Labs-Diffusion-8B}"
+SERVER_BASE_MODEL="${SERVER_BASE_MODEL:-/data1/linyewei/models/Nemotron-Labs-Diffusion-8B}"
 SERVER_TOKENIZER="${SERVER_TOKENIZER:-}"
 SERVER_DCP_PATH="${SERVER_DCP_PATH:-}"
 SERVER_ENGINE="${SERVER_ENGINE:-nemotron}"
@@ -82,6 +82,16 @@ SEQ_EVAL_TEMPERATURE="${SEQ_EVAL_TEMPERATURE:-0}"
 SEQ_EVAL_AR_WEIGHT="${SEQ_EVAL_AR_WEIGHT:-}"
 SEQ_EVAL_CONF_TEMP="${SEQ_EVAL_CONF_TEMP:-}"
 SEQ_EVAL_MAX_THINKING_TOKENS="${SEQ_EVAL_MAX_THINKING_TOKENS:-}"
+SEQ_EVAL_JUDGE_MODEL="${SEQ_EVAL_JUDGE_MODEL:-}"
+SEQ_EVAL_JUDGE_SERVER_ADDRESS="${SEQ_EVAL_JUDGE_SERVER_ADDRESS:-}"
+SEQ_EVAL_JUDGE_SERVER_TYPE="${SEQ_EVAL_JUDGE_SERVER_TYPE:-}"
+SEQ_EVAL_JUDGE_CONCURRENCY="${SEQ_EVAL_JUDGE_CONCURRENCY:-4}"
+SEQ_EVAL_MT_BENCH_MAX_TOKENS="${SEQ_EVAL_MT_BENCH_MAX_TOKENS:-1024}"
+SEQ_EVAL_MT_BENCH_CHAT_TEMPLATE_SHA256="${SEQ_EVAL_MT_BENCH_CHAT_TEMPLATE_SHA256:-}"
+SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK="${SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK:-false}"
+SEQ_EVAL_MODEL="${SEQ_EVAL_MODEL:-nemotron-labs-diffusion-8b}"
+SEQ_EVAL_CLIENT_CONCURRENCY="${SEQ_EVAL_CLIENT_CONCURRENCY:-$SERVER_BATCH_SIZE}"
+SEQ_EVAL_STRIP_THINKING="${SEQ_EVAL_STRIP_THINKING:-false}"
 LINEAR_SPECULATION="${LINEAR_SPECULATION:-}"
 # Linear self-speculation is a boolean toggle. Compute the flag once; both the
 # worker and the eval client need to receive it.
@@ -120,6 +130,7 @@ PROJECT_DIR="$(cd "$ROOT_DIR/.." && pwd)"
 WORKER_SCRIPT="$ROOT_DIR/dlm_api/dlm_batch_server.py"
 LB_SCRIPT="$ROOT_DIR/dlm_api/dlm_load_balancer.py"
 EVAL_SCRIPT="$ROOT_DIR/nemo-skills/eval_dlm.py"
+MT_BENCH_SCRIPT="$ROOT_DIR/mt_bench/eval_mt_bench.py"
 PATCH_SCRIPT="$ROOT_DIR/nemo-skills/patch_openai_extra_body.py"
 DICTCONFIG_PATCH="$ROOT_DIR/nemo-skills/patch_dictconfig_serialization.py"
 
@@ -127,6 +138,8 @@ DICTCONFIG_PATCH="$ROOT_DIR/nemo-skills/patch_dictconfig_serialization.py"
 EVAL_OUTPUT_DIR="${SEQ_EVAL_OUTPUT_DIR:-$PROJECT_DIR/eval-output}"
 mkdir -p "$EVAL_OUTPUT_DIR"
 EVAL_OUTPUT_DIR="$(realpath "$EVAL_OUTPUT_DIR")"
+MT_BENCH_DATA_DIR="${MT_BENCH_DATA_DIR:-$EVAL_OUTPUT_DIR/mt-bench-data}"
+MT_BENCH_OUTPUT_DIR="$EVAL_OUTPUT_DIR/eval-results/mt-bench"
 
 NFE_LOG_DIR="${NFE_LOG_DIR:-}"
 
@@ -238,6 +251,18 @@ fi
 if [[ -n "$SEQ_EVAL_MAX_THINKING_TOKENS" ]]; then
     EVAL_ARGS="$EVAL_ARGS --max-thinking-tokens $SEQ_EVAL_MAX_THINKING_TOKENS"
 fi
+if [[ -n "$SEQ_EVAL_JUDGE_MODEL" ]]; then
+    EVAL_ARGS="$EVAL_ARGS --judge-model $SEQ_EVAL_JUDGE_MODEL"
+fi
+if [[ -n "$SEQ_EVAL_JUDGE_SERVER_ADDRESS" ]]; then
+    EVAL_ARGS="$EVAL_ARGS --judge-server-address $SEQ_EVAL_JUDGE_SERVER_ADDRESS"
+fi
+if [[ -n "$SEQ_EVAL_JUDGE_SERVER_TYPE" ]]; then
+    EVAL_ARGS="$EVAL_ARGS --judge-server-type $SEQ_EVAL_JUDGE_SERVER_TYPE"
+fi
+if [[ "${SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK,,}" == "true" || "$SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK" == "1" ]]; then
+    EVAL_ARGS="$EVAL_ARGS --skip-judge-api-key-check"
+fi
 EVAL_ARGS="$EVAL_ARGS $_LINEAR_SPEC_FLAG"
 if [[ -n "$DRAFT_LORA_ONLY" ]]; then
     EVAL_ARGS="$EVAL_ARGS --draft-lora-only $DRAFT_LORA_ONLY"
@@ -250,6 +275,64 @@ if [[ -n "$GLOBAL_EVAL_FLAGS" ]]; then
 fi
 if [[ -n "$SEQ_EVAL_EXTRA_ARGS" ]]; then
     EVAL_ARGS="$EVAL_ARGS $SEQ_EVAL_EXTRA_ARGS"
+fi
+
+# MT-Bench caps each official turn at its own completion budget. Diffusion
+# steps should not remain at the much larger general-benchmark token budget.
+MT_BENCH_STEPS="$SEQ_EVAL_STEPS"
+if [[ "$MT_BENCH_STEPS" =~ ^[0-9]+$ ]] \
+    && (( MT_BENCH_STEPS > SEQ_EVAL_MT_BENCH_MAX_TOKENS )); then
+    MT_BENCH_STEPS="$SEQ_EVAL_MT_BENCH_MAX_TOKENS"
+fi
+MT_BENCH_ARGS="--candidate-server-address http://localhost:__LB_PORT__/v1"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-model $SEQ_EVAL_MODEL"
+MT_BENCH_TOKENIZER="${SERVER_TOKENIZER:-$SERVER_BASE_MODEL}"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-tokenizer $MT_BENCH_TOKENIZER"
+# The legacy batched worker currently does not consume per-request OpenAI seed.
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-seed-mode none"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-concurrency $SEQ_EVAL_CLIENT_CONCURRENCY"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-generation-algorithm $SEQ_EVAL_GENERATION_ALGORITHM"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-steps $MT_BENCH_STEPS"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-block-length $SEQ_EVAL_BLOCK_LENGTH"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --max-tokens $SEQ_EVAL_MT_BENCH_MAX_TOKENS"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --judge-concurrency $SEQ_EVAL_JUDGE_CONCURRENCY"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --data-dir $MT_BENCH_DATA_DIR"
+MT_BENCH_ARGS="$MT_BENCH_ARGS --output-dir $MT_BENCH_OUTPUT_DIR --resume"
+if [[ -n "$SEQ_EVAL_THRESHOLD" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-threshold $SEQ_EVAL_THRESHOLD"
+fi
+if [[ -n "$SEQ_EVAL_AR_WEIGHT" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-ar-weight $SEQ_EVAL_AR_WEIGHT"
+fi
+if [[ -n "$SEQ_EVAL_MAX_THINKING_TOKENS" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-max-thinking-tokens $SEQ_EVAL_MAX_THINKING_TOKENS"
+fi
+if [[ -n "$_LINEAR_SPEC_FLAG" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-linear-speculation"
+fi
+if [[ "${DRAFT_LORA_ONLY,,}" == "true" || "$DRAFT_LORA_ONLY" == "1" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-draft-lora-only"
+fi
+if [[ -n "$SAMPLER" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-sampler $SAMPLER"
+fi
+if [[ -n "$SEQ_EVAL_JUDGE_MODEL" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --judge-model $SEQ_EVAL_JUDGE_MODEL"
+fi
+if [[ -n "$SEQ_EVAL_JUDGE_SERVER_ADDRESS" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --judge-server-address $SEQ_EVAL_JUDGE_SERVER_ADDRESS"
+fi
+if [[ -n "$SEQ_EVAL_MT_BENCH_CHAT_TEMPLATE_SHA256" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --expected-chat-template-sha256 $SEQ_EVAL_MT_BENCH_CHAT_TEMPLATE_SHA256"
+fi
+if [[ "${SERVER_ENABLE_THINKING,,}" == "true" || "$SERVER_ENABLE_THINKING" == "1" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --candidate-enable-thinking"
+fi
+if [[ "${SEQ_EVAL_STRIP_THINKING,,}" == "true" || "$SEQ_EVAL_STRIP_THINKING" == "1" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --strip-thinking"
+fi
+if [[ "${SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK,,}" == "true" || "$SEQ_EVAL_SKIP_JUDGE_API_KEY_CHECK" == "1" ]]; then
+    MT_BENCH_ARGS="$MT_BENCH_ARGS --skip-judge-api-key-check"
 fi
 
 # --- Extract benchmark name for data preparation -----------------------------
@@ -351,10 +434,14 @@ echo "  Server info:     $SERVER_INFO_FILE"
 echo "  NFE log dir:     ${NFE_LOG_DIR_ABS:-(none)}"
 echo "  Worker ports:    $WORKER_PORTS"
 echo "  Eval args:       $EVAL_ARGS"
+if [[ "$BENCHMARK_NAME" == "mt-bench" ]]; then
+echo "  MT-Bench args:   $MT_BENCH_ARGS"
+fi
 if [[ -n "$SAVE_TEXT_INPUTS_DIR" ]]; then
 echo "  Save text dir:   $SAVE_TEXT_INPUTS_DIR"
 echo "  Save only:       ${SAVE_INPUTS_ONLY:-false}"
 fi
+
 echo "=============================================================="
 echo ""
 
@@ -409,6 +496,11 @@ else
         echo "  Installing IFEval runtime deps (langdetect, immutabledict, nltk)..."
         uv pip install langdetect immutabledict nltk 2>&1 || echo "Warning: IFEval dependency install failed"
     fi
+fi
+
+if [[ "$BENCHMARK_NAME" == "mt-bench" ]] && ! \$PYTHON_BIN -c "import httpx, os; proxy = os.environ.get('ALL_PROXY', os.environ.get('all_proxy', '')); (not proxy.lower().startswith('socks')) or __import__('socksio')" 2>/dev/null; then
+    echo "  Installing MT-Bench HTTP client dependency..."
+    uv pip install 'httpx[socks]' 2>&1 || { echo "ERROR: httpx with configured proxy support is required for MT-Bench" >&2; exit 1; }
 fi
 
 echo "  Applying NeMo-Skills patches..."
@@ -593,7 +685,10 @@ SINFO
 # --- Phase 5: Prepare benchmark data ---
 echo "[6/7] Preparing benchmark data and running evaluation..."
 BENCHMARKS_TO_PREPARE="$BENCHMARK_NAME"
-if [[ -n "\$BENCHMARKS_TO_PREPARE" ]]; then
+if [[ "\$BENCHMARKS_TO_PREPARE" == "mt-bench" ]]; then
+    echo "  Preparing pinned FastChat MT-Bench assets..."
+    \$PYTHON_BIN "$MT_BENCH_SCRIPT" --data-dir "$MT_BENCH_DATA_DIR" --prepare-only
+elif [[ -n "\$BENCHMARKS_TO_PREPARE" ]]; then
     NS_BIN="\$VENV_DIR/bin/ns"
     if [ -f "\$NS_BIN" ]; then
         IFS=',' read -ra BENCHMARK_ARRAY <<< "\$BENCHMARKS_TO_PREPARE"
@@ -608,10 +703,17 @@ fi
 echo ""
 # Resolve the __LB_PORT__ sentinel using the LB retry's final port.
 EVAL_ARGS_RESOLVED="${EVAL_ARGS//__LB_PORT__/\$LOAD_BALANCER_PORT}"
-echo "  Running: \$PYTHON_BIN $EVAL_SCRIPT \$EVAL_ARGS_RESOLVED"
-echo ""
 EVAL_EXIT_CODE=0
-\$PYTHON_BIN "$EVAL_SCRIPT" \$EVAL_ARGS_RESOLVED || EVAL_EXIT_CODE=\$?
+if [[ "$BENCHMARK_NAME" == "mt-bench" ]]; then
+    MT_BENCH_ARGS_RESOLVED="${MT_BENCH_ARGS//__LB_PORT__/\$LOAD_BALANCER_PORT}"
+    echo "  Running: \$PYTHON_BIN $MT_BENCH_SCRIPT \$MT_BENCH_ARGS_RESOLVED"
+    echo ""
+    \$PYTHON_BIN "$MT_BENCH_SCRIPT" \$MT_BENCH_ARGS_RESOLVED || EVAL_EXIT_CODE=\$?
+else
+    echo "  Running: \$PYTHON_BIN $EVAL_SCRIPT \$EVAL_ARGS_RESOLVED"
+    echo ""
+    \$PYTHON_BIN "$EVAL_SCRIPT" \$EVAL_ARGS_RESOLVED || EVAL_EXIT_CODE=\$?
+fi
 
 # --- Dump worker debug info to pipeline log before cleanup ---
 echo ""

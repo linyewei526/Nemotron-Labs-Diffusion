@@ -13,11 +13,11 @@ Three engines this slim build serves, selected via --engine:
 
 Usage:
     # HF-direct (eval.sh path)
-    python dlm_batch_server.py --model-path nvidia/Nemotron-Labs-Diffusion-8B --engine nemotron
+    python dlm_batch_server.py --model-path /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --engine nemotron
 
     # DCP-checkpoint overlay (training-time eval)
     python dlm_batch_server.py --dcp-path /path/to/policy \
-        --base-model nvidia/Nemotron-Labs-Diffusion-8B --engine nemotron
+        --base-model /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --engine nemotron
 """
 
 import argparse
@@ -977,12 +977,12 @@ Engine Options (eval_suit slim build — Nemotron-Labs diffusion family only):
 
 Examples:
   # Diffusion sampling
-  python dlm_batch_server.py --model-path nvidia/Nemotron-Labs-Diffusion-8B --engine nemotron
+  python dlm_batch_server.py --model-path /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --engine nemotron
   # Linear self-spec with LoRA draft
-  python dlm_batch_server.py --model-path nvidia/Nemotron-Labs-Diffusion-8B --engine nemotron \
+  python dlm_batch_server.py --model-path /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --engine nemotron \
       --linear-speculation --lora-path /path/to/lora --draft-lora-only
   # AR via ar_generate
-  python dlm_batch_server.py --model-path nvidia/Nemotron-Labs-Diffusion-8B --engine ar_native
+  python dlm_batch_server.py --model-path /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --engine ar_native
         """
     )
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
@@ -991,7 +991,7 @@ Examples:
     parser.add_argument("--revision", default=None,
                        help="Optional HuggingFace model revision/commit to load (default: latest).")
     parser.add_argument("--dcp-path", help="Path to DCP checkpoint (supports both DLM and Nemotron models)")
-    parser.add_argument("--base-model", default="nvidia/Nemotron-Labs-Diffusion-8B", 
+    parser.add_argument("--base-model", default="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B", 
                        help="Base HF model id used to source tokenizer/config when --dcp-path is given. "
                             "For HF-direct loads (eval.sh path), --model-path already carries this.")
     parser.add_argument("--temp-dir", default="/tmp/model_hf_converted",

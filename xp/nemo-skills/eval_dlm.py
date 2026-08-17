@@ -66,7 +66,75 @@ Usage:
 import os
 import re
 import argparse
-from nemo_skills.pipeline.cli import eval, wrap_arguments
+from pathlib import Path
+
+import nemo_skills.dataset
+from nemo_skills.pipeline.eval import eval
+
+
+ARENA_HARD_BENCHMARKS = frozenset({"arena-hard", "arena-hard-v2"})
+
+
+def _benchmark_names(benchmark_specs: str) -> set[str]:
+    """Return normalized benchmark names from NeMo-Skills name:repeats specs."""
+    return {
+        spec.split(":", 1)[0].strip()
+        for spec in benchmark_specs.split(",")
+        if spec.strip()
+    }
+
+
+def _validate_arena_hard_runtime(config: dict) -> set[str]:
+    """Fail early when an Arena-Hard dataset or its default judge is unavailable."""
+    arena_benchmarks = _benchmark_names(config["benchmarks"]) & ARENA_HARD_BENCHMARKS
+    if not arena_benchmarks:
+        return set()
+
+    dataset_root = Path(nemo_skills.dataset.__file__).resolve().parent
+    missing = [
+        name
+        for name in sorted(arena_benchmarks)
+        if not (dataset_root / name / "__init__.py").is_file()
+        or not (dataset_root / name / "prepare.py").is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "The active NeMo-Skills installation does not provide the required "
+            f"Arena-Hard dataset adapter(s): {', '.join(missing)}. "
+            "Use a NeMo-Skills build that includes arena-hard/arena-hard-v2 "
+            "(the validated NLD environment uses nemo-skills 0.7.0)."
+        )
+
+    # Both built-in Arena-Hard variants default to api.openai.com + GPT-4.1.
+    # A custom OpenAI-compatible judge endpoint may use its own authentication,
+    # so only enforce OPENAI_API_KEY for the built-in/default OpenAI endpoint.
+    judge_address = config["judge_server_address"] or "https://api.openai.com/v1"
+    uses_openai_api = "api.openai.com" in judge_address.lower()
+    if (
+        uses_openai_api
+        and not config["dry_run"]
+        and not config["skip_judge_api_key_check"]
+        and not os.environ.get("OPENAI_API_KEY")
+    ):
+        raise RuntimeError(
+            "Arena-Hard uses the GPT-4.1 OpenAI judge by default, but "
+            "OPENAI_API_KEY is not set. Export OPENAI_API_KEY, configure a "
+            "custom judge with --judge-model/--judge-server-address, or use "
+            "--skip-judge-api-key-check when credentials are injected downstream."
+        )
+
+    return arena_benchmarks
+
+
+def wrap_arguments(arguments: str):
+    """Minimal NeMo-Skills ctx wrapper without importing the full CLI module."""
+
+    class MockContext:
+        def __init__(self, args):
+            self.args = args
+            self.obj = None
+
+    return MockContext(args=[arg for arg in arguments.split(" ") if arg])
 
 
 def _str_to_bool(value: str) -> bool:
@@ -149,6 +217,18 @@ def create_parser():
         help="Maximum number of problems to evaluate (for quick testing)"
     )
     parser.add_argument(
+        "--num-chunks",
+        type=int,
+        default=2,
+        help="NeMo-Skills num_chunks override. In SGLang-proxy eval this is the client-side chunking/concurrency knob.",
+    )
+    parser.add_argument(
+        "--max-concurrent-requests",
+        type=int,
+        default=None,
+        help="NeMo-Skills max_concurrent_requests override. Use with SGLang proxy concurrency to define the client workload.",
+    )
+    parser.add_argument(
         "--cluster",
         default="local",
         help="If you want to run on a cluster via nemo-skills (defaults to 'local')"
@@ -164,6 +244,26 @@ def create_parser():
         "--model",
         default="nemotron-labs-diffusion-8b", 
         help="Model identifier alias (a label, not the HF id; default: nemotron-labs-diffusion-8b)"
+    )
+    parser.add_argument(
+        "--judge-model",
+        default=None,
+        help="Judge model override for judge-based benchmarks. Arena-Hard defaults to the NeMo-Skills setting (GPT-4.1).",
+    )
+    parser.add_argument(
+        "--judge-server-address",
+        default=None,
+        help="OpenAI-compatible judge endpoint override. Arena-Hard defaults to https://api.openai.com/v1.",
+    )
+    parser.add_argument(
+        "--judge-server-type",
+        default=None,
+        help="NeMo-Skills judge server type override (normally openai).",
+    )
+    parser.add_argument(
+        "--skip-judge-api-key-check",
+        action="store_true",
+        help="Skip the Arena-Hard OPENAI_API_KEY preflight check. This does not disable authentication in the judge client.",
     )
     
     # Inference settings
@@ -293,6 +393,13 @@ def create_parser():
         help="Exclude unfinished samples from NFE/tokens aggregation. "
              "When true, samples with nfe >= tokens_to_generate are excluded."
     )
+    parser.add_argument(
+        "--no-extra-body",
+        action="store_true",
+        help="Do not send DLM/Nemotron-specific inference.extra_body fields. "
+             "Use this when NeMo-Skills should keep its benchmark/prompt/scoring "
+             "logic but the backend is a vanilla SGLang OpenAI-compatible server.",
+    )
     # Execution settings
     parser.add_argument(
         "--dry-run",
@@ -380,6 +487,10 @@ def main():
         "server_type": "openai",  # Use OpenAI-compatible server
         "server_address": args.server_address,
         "model": args.model,
+        "judge_model": args.judge_model,
+        "judge_server_address": args.judge_server_address,
+        "judge_server_type": args.judge_server_type,
+        "skip_judge_api_key_check": args.skip_judge_api_key_check,
         
         # Additional evaluation arguments
         "cluster": None if args.cluster == "local" else args.cluster,
@@ -391,6 +502,8 @@ def main():
         "top_k": args.top_k,
         "tokens_to_generate": args.tokens_to_generate,
         "max_samples": args.max_samples,
+        "num_chunks": args.num_chunks,
+        "max_concurrent_requests": args.max_concurrent_requests,
         "quick_test": args.quick_test,
         "keep_thinking": args.keep_thinking,
         "disable_thinking": args.disable_thinking,
@@ -415,6 +528,7 @@ def main():
         "draft_lora_only": args.draft_lora_only,
         "sampler": args.sampler,
         "exclude_unfinished_nfe": args.exclude_unfinished_nfe,
+        "no_extra_body": args.no_extra_body,
     }
 
     # Model-specific default for shift_logits when user does not set it explicitly.
@@ -445,6 +559,8 @@ def main():
     
     # Create output directory if it doesn't exist
     os.makedirs(config["output_dir"], exist_ok=True)
+
+    arena_benchmarks = _validate_arena_hard_runtime(config)
     
     print("=" * 60)
     benchmark_name = config["benchmarks"].split(":")[0].upper()
@@ -470,6 +586,13 @@ def main():
     print(f"Temperature: {config['temperature']} | Top-p: {config['top_p']} | Top-k: {config['top_k']} (will be set to -1)")
     print(f"Max tokens: {config['tokens_to_generate']}")
     print(f"Generation Algorithm: {config['generation_algorithm']}")
+    if arena_benchmarks:
+        print(f"Arena judge model: {config['judge_model'] or 'gpt-4.1 (NeMo-Skills default)'}")
+        print(
+            "Arena judge server: "
+            f"{config['judge_server_address'] or 'https://api.openai.com/v1 (NeMo-Skills default)'}"
+        )
+        print(f"Arena judge server type: {config['judge_server_type'] or 'openai (NeMo-Skills default)'}")
     if config["exclude_unfinished_nfe"] is not None:
         print(f"Exclude unfinished NFE: {config['exclude_unfinished_nfe']}")
     
@@ -535,10 +658,16 @@ def main():
             f"++inference.top_p={config['top_p']}", 
             f"++inference.top_k=-1",  # Must be -1 for OpenAI API compatibility
             f"++inference.tokens_to_generate={config['tokens_to_generate']}",
-            f"++num_chunks=2"
+            f"++num_chunks={config['num_chunks']}",
         ]
+        if config["max_concurrent_requests"] is not None:
+            generation_args.append(f"++max_concurrent_requests={config['max_concurrent_requests']}")
         
-        if is_ar_mode:
+        if config["no_extra_body"]:
+            print("\nSGLang backend mode: DLM/Nemotron-specific extra_body parameters are suppressed.")
+            print("  NeMo-Skills benchmark organization, prompts, datasets, and scoring remain unchanged.")
+            print("  SGLang server-side defaults/configuration control decoding behavior.")
+        elif is_ar_mode:
             # AR mode: standard autoregressive inference.
             # Explicitly pass huggingface algorithm to avoid server-side defaulting to diffusion algorithms.
             ar_steps = max(1, int(config["tokens_to_generate"]))
@@ -635,7 +764,7 @@ def main():
                 print(f"  sampler={config['sampler']}")
             print("   (Passed via NeMo-Skills extra_body to OpenAI API)")
 
-        if config["exclude_unfinished_nfe"] is not None:
+        if (not config["no_extra_body"]) and config["exclude_unfinished_nfe"] is not None:
             generation_args.append(
                 f"++inference.extra_body.exclude_unfinished_nfe={str(config['exclude_unfinished_nfe']).lower()}"
             )
@@ -667,9 +796,11 @@ def main():
             print("   Post-eval strip+rescore will also run as a safety net")
         
         # Disable <think> tag injection in the chat template
-        if config["disable_thinking"]:
+        if config["disable_thinking"] and not config["no_extra_body"]:
             generation_args.append("++inference.extra_body.chat_template_kwargs.enable_thinking=False")
             print("\n🔇 Thinking disabled: chat template will NOT inject <think> tags")
+        elif config["disable_thinking"] and config["no_extra_body"]:
+            print("\nNote: --disable-thinking was requested, but --no-extra-body is active; no chat_template_kwargs are sent.")
 
         if nanov2_no_think:
             print("\n🔇 Nemotron Nano v2: will inject /no_think into system_message per-benchmark")
@@ -693,10 +824,15 @@ def main():
         for bench_spec in benchmark_specs:
             bench_name = bench_spec.split(":")[0].strip()
 
-            # Inject benchmark_name into extra_body so the server tags NFE entries
-            bench_generation_args = generation_args + [
-                f"++inference.extra_body.benchmark_name={bench_name}",
-            ]
+            # Inject benchmark_name into extra_body so the server/proxy can tag
+            # per-request metrics. SGLang proxy mode truncates per-benchmark logs
+            # and does not require this tag, so keep the request body clean there.
+            if config["no_extra_body"]:
+                bench_generation_args = list(generation_args)
+            else:
+                bench_generation_args = generation_args + [
+                    f"++inference.extra_body.benchmark_name={bench_name}",
+                ]
 
             # Override prompt_config for math benchmarks when requested.
             # E.g. --math-prompt-config qwen/math-cot adds a "reason step by
@@ -726,8 +862,10 @@ def main():
 
             print(f"\n--- Running benchmark: {bench_spec} ---")
 
-            # Call the evaluation function with direct parameters
-            result = eval(
+            # Call the evaluation function with direct parameters. Judge
+            # overrides are passed only when explicitly requested so ordinary
+            # benchmarks and NeMo-Skills dataset defaults remain unchanged.
+            eval_kwargs = dict(
                 ctx=wrap_arguments(" ".join(bench_generation_args)),
                 # Core parameters
                 benchmarks=bench_spec,
@@ -743,6 +881,13 @@ def main():
                 cluster=config["cluster"],
                 dry_run=config["dry_run"],
             )
+            if bench_name in arena_benchmarks and config["judge_model"]:
+                eval_kwargs["judge_model"] = config["judge_model"]
+            if bench_name in arena_benchmarks and config["judge_server_address"]:
+                eval_kwargs["judge_server_address"] = config["judge_server_address"]
+            if bench_name in arena_benchmarks and config["judge_server_type"]:
+                eval_kwargs["judge_server_type"] = config["judge_server_type"]
+            result = eval(**eval_kwargs)
 
             # Process NFE for this benchmark immediately
             if not config["dry_run"]:
@@ -812,6 +957,14 @@ def main():
                             print(f"Thinking blocks stripped from {bench_name} outputs")
                     except Exception as e:
                         print(f"Warning: could not strip thinking from {bench_name}: {e}")
+
+            if not config["dry_run"]:
+                eval_dir = os.path.join(config["output_dir"], "eval-results", bench_name)
+                metrics_json = os.path.join(eval_dir, "metrics.json")
+                if not os.path.isfile(metrics_json):
+                    raise RuntimeError(
+                        f"NeMo-Skills did not produce metrics for {bench_name}: {metrics_json}"
+                    )
 
         print("\n" + "=" * 60)
         if config["dry_run"]:
