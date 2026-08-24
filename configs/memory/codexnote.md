@@ -136,3 +136,85 @@ method 文档记录的早期验收目录在本文生成时已不位于当前结�
 5. 下一步准备修改的具体独立路径、验证计划和不会影响的旧实验范围。
 
 完成这些对齐后，从 `quicknote.md` 的“后续优先事项”或用户的新指令继续，不要从头重做已经完成的研究。
+
+---
+
+时间戳：2026-08-24 10:21:44 +0800（CST）
+
+# 新会话增量对齐与跨服务器迁移指南
+
+本节追加于 2026-08-17 快照之后，优先级高于前文关于“两套方法仍在运行”和“固定路径”的旧状态描述；不要删除或改写旧快照。
+
+## 9. 先读取可随 Git 迁移的实验档案
+
+在检查外部结果前依次阅读：
+
+1. `configs/experiments/README.md`
+2. `configs/experiments/basis/NLD_experiment_provenance_and_metrics_zh.md`
+3. `configs/experiments/observations/NLD_reproduction_and_diagnostic_evidence_zh.md`
+4. `configs/experiments/method/NLD_three_overlap_methods_results_zh.md`
+
+这些文档保存了必要 TPF、Accuracy、confidence/rank/drop、alignment、方法状态和分析结论。即使 `/data/home/wly/dLLM/NLD_results` 没有迁移，也应先靠它们恢复研究进度；若任务需要逐请求 trace、完整 metrics、生成文本或 artifact，再询问用户原始结果的新位置，不能从摘要反向伪造原始数据。
+
+## 10. 三套方法的最新演进顺序
+
+按以下顺序阅读手册和同名 `method/` 目录：
+
+1. `confidence_overlap_linearspec`：固定第二候选 B，只有 verifier 确认 `C=B` 时复用完整 L。
+2. `confidence_mask_redraft_linearspec`：自主全 MASK 重生成，允许直接、下游、bonus 和部分后缀复用。
+3. `confidence_direct_mask_redraft_linearspec`：自主全 MASK 重生成，但只在 `m=p,R0=C` 时复用完整 L。
+
+三轮正式十项结果均已完成。第三套方法暴露的关键问题是：`R0=C` 只说明自主 row 1 猜中修正 token，同一次 forward 产生的 `R1...` 并未看到 C 的 token embedding，因此不能认为后缀已条件化在 C 上。具体数据和复盘以 `configs/experiments/method/` 为准。
+
+Strict Direct 还有一个未完成工程项：当前报告只在整个 pipeline 结束后生成。修改时应在 Settings 创建后立即建立完整 `report.md` 框架，每完成/失败一个数据集就原子重建当前报告，全部请求数据集结束前不计算平均，结束后才计算排除 AIME24 的数据集等权平均。
+
+## 11. 旧服务器路径不是不可变常量
+
+当前仓库的文档、命令和部分代码默认基于以下旧服务器映射：
+
+|名称|旧默认值|
+|---|---|
+|工作区根目录|`/data/home/wly/dLLM`|
+|项目目录|`/data/home/wly/dLLM/Nemotron-Labs-Diffusion`|
+|结果根目录|`/data/home/wly/dLLM/NLD_results`|
+|模型目录|`/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`|
+|数据集目录|`/data1/linyewei/datasets/NLD`|
+|Conda 环境|`nld_sglang`|
+
+名称表示需要确认的迁移参数；旧默认值只是当前服务器布局。例如项目 clone 到 `/workspace/Nemotron-Labs-Diffusion` 时，项目相对路径仍可用，但任何以 `/data/home/wly/dLLM` 开头的运行默认值都必须审计。
+
+在新服务器开始运行前逐项检查实际项目目录、结果目录、模型、数据集和环境。任一项不存在时：
+
+1. 主动告诉用户缺失的旧路径以及它被哪些任务需要。
+2. 询问用户对应的新绝对路径或可用 Conda 环境，不猜测、不静默下载、不创建空模型/数据目录。
+3. 指导用户通过现有 CLI、环境变量或配置覆盖；确需改代码时，只改当前活跃默认值并保持旧实验隔离。
+4. 修改后先做路径存在性、依赖 import、dry-run 和单样本 smoke，再执行正式评测。
+
+## 12. 绝对路径审计与修改边界
+
+迁移后先在实际项目根目录搜索旧前缀和环境名，至少覆盖 `configs/`、`observations/`、`method/`、`xp/`、`chat/`、根目录脚本及模型 remote code 的调用处：
+
+```bash
+rg -n '/data/home/wly/dLLM|/data1/linyewei/models/Nemotron-Labs-Diffusion-8B|/data1/linyewei/datasets/NLD|nld_sglang' configs observations method xp chat ./*.sh ./*.py
+```
+
+搜索结果分两类处理：
+
+- 活跃入口、默认参数、当前命令、环境激活和运行依赖：更新为用户确认的新映射，优先使用项目相对路径、CLI 参数或明确的任务专用环境变量。
+- 历史 `Settings.json`、旧报告、`configs/experiments/` 的来源路径和历史命令：保留为 provenance；必要时追加“迁移后映射”，不要把历史记录改写成从未发生过的新路径。
+
+若 `/data/home/wly/dLLM/NLD_results` 不存在，不应把 `configs/experiments/` 当作原始结果目录；它只能支持结果理解。需要重生成报告、检查逐样本输出或继续离线 trace 分析时，必须先向用户询问原始结果迁移位置或是否允许重新运行。
+
+若模型或数据集缺失，应分别确认新 `MODEL_PATH` 和 NeMo-Skills data root，并检查 Google Research/EvalPlus 等附加资产；只找到同名目录不足以证明内容版本正确。若 `nld_sglang` 不存在，应先询问新环境名或安装方案，核对 Python、PyTorch、Transformers、SGLang、NeMo-Skills 和 CUDA 兼容性后再运行。
+
+## 13. 最新对齐完成判据
+
+新会话应向用户简要确认：
+
+1. 已读取 `configs/experiments/` 并理解三套方法及正式结果；
+2. 已区分仓库内可迁移摘要与外部原始结果；
+3. 已核验当前是否仍有活跃进程、隐藏工作目录和未提交改动；
+4. 已确认项目、结果、模型、数据集和 Conda 环境的实际映射；
+5. 已说明 Strict Direct 的后缀条件化瓶颈、报告增量更新待办和下一步独立修改路径。
+
+达到这些判据后再继续开发，不要因为旧绝对路径失效就重做已完成研究，也不要在未经确认时批量替换历史 provenance。

@@ -38,3 +38,34 @@
 - 先确认上述两轮任务是否结束，再检查最终 `Settings.json`、十项 metrics/error、运行时清理和汇总完整性。
 - 在结果完整后比较 baseline、固定 B overlap 与自主 MASK redraft 的准确率、TPF、TPS、物理 NFE、复用率和额外计算量；当前 partial metrics 不能作为最终结论。
 - 后续新增解码策略继续新建独立 `method/<新方法>/` 和 `configs/method/<新文档>.md`，不要覆盖已有复现、观察和两套方法代码。
+
+---
+
+时间戳：2026-08-24 10:21:44 +0800（CST）
+
+## 增量交接记录
+
+1. 正式实验与分析
+   - Confidence-Overlap 与 Autonomous Mask-Redraft 的十项实验均已完成，各有 10 份 metrics、0 error；结果分别位于 `/data/home/wly/dLLM/NLD_results/confidence_overlap_linearspec_20260817_033248/` 和 `confidence_mask_redraft_linearspec_20260817_182905/`。
+   - 两方法与 PyTorch B16/B32 baseline 的完整比较见 `/data/home/wly/dLLM/NLD_results/marks/NLD_PyTorch_LinearSpec_two_methods_vs_baselines_20260821_zh.md`。
+
+2. 第三套独立方法
+   - 已实现只接受触发位置直接命中的 Strict Direct MASK-Redraft：代码位于 `method/confidence_direct_mask_redraft_linearspec/`，手册为 `configs/method/NLD_PyTorch_NeMoSkills_confidence_direct_mask_redraft_linearspec_zh.md`。
+   - 十项正式实验已完成，10 份 metrics、0 error；结果与统计见 `/data/home/wly/dLLM/NLD_results/confidence_direct_mask_redraft_linearspec_20260821_173928/report.md`。
+   - 结果显示直接修正率与固定 B 接近，但 TPF 提升较小；主要诊断是自主 row 1 的后缀在同一次 forward 中没有条件化在预测修正 token 上。当前 verifier shift、row 0 KV cache 和 verifier-only 提交链路未发现明显错位。
+
+3. 可迁移实验档案
+   - 已将外部结果中的必要配置、TPF、Accuracy、confidence/rank/drop、alignment、三方法机制指标和结论提炼到 `configs/experiments/`；总索引为 `configs/experiments/README.md`。
+   - 该目录可随 Git 迁移，但不是原始 metrics、trace、生成文本和日志的备份。原始结果仍默认位于 `/data/home/wly/dLLM/NLD_results/`。
+
+4. 当前状态与待办
+   - 本次盘点时三轮 method 正式实验均已结束，无对应活跃进程或隐藏工作目录。
+   - Strict Direct 的 `report.md` 仍在整个 pipeline 结束后才创建；尚需改为运行初始化时创建完整框架、逐数据集原子刷新、全部数据集完成后才计算等权平均。
+   - 后续应做同 commit/GPU/输入的 B16/B32/三方法配对重跑与逐 token verifier/KV 等价性检查。
+
+## 迁移路径提示
+
+- 当前文档和代码中的默认旧布局是：工作区根目录 `/data/home/wly/dLLM`，项目目录 `/data/home/wly/dLLM/Nemotron-Labs-Diffusion`，结果根目录 `/data/home/wly/dLLM/NLD_results`。
+- 当前模型路径为 `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`，数据集目录为 `/data1/linyewei/datasets/NLD`，Conda 环境为 `nld_sglang`。
+- 新开发者或新服务器若找不到任一路径/环境，应先向用户确认新的项目、结果、模型、数据集和环境映射，再指导修改运行默认值、命令或参数；不要静默创建空目录、替换模型/数据或伪造缺失结果。
+- 历史 Settings、实验报告和 `configs/experiments/` 中的旧绝对路径属于 provenance，通常保留；真正需要改的是活跃代码默认值和当前执行命令。
