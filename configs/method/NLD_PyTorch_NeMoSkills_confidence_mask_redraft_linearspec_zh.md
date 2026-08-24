@@ -164,7 +164,7 @@ bash method/confidence_mask_redraft_linearspec/eval_confidence_mask_redraft.sh -
 ### 5.4 默认十项 benchmark
 
 ```bash
-bash method/confidence_mask_redraft_linearspec/eval_confidence_mask_redraft.sh --mode mask_redraft_lora --gpu-device auto --gpu-min-free-gb 24 --block-length 16 --drop-pct-threshold 0.15 --tokens 8192
+bash method/confidence_mask_redraft_linearspec/eval_confidence_mask_redraft.sh --mode mask_redraft_lora --gpu-device 3 --gpu-memory-reserve-gb 0 --block-length 16 --drop-pct-threshold 0.15 --tokens 8192
 ```
 
 默认列表为：
