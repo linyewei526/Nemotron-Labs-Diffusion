@@ -198,3 +198,120 @@ IFEval的评估也出错了，参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/
 现在开始执行吧，注意完成/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/experiments后就告诉我，先不急修改追加quicknote.md 和 codexnote.md，等我指令再追加修改。
 
 好的，现在请你更新quicknote.md和codexnote.md，注意：1.遵循此前让你理解的针对两个文档追加新时间戳并记录新增内容的指示，注意有/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/experiments的新增。2.由于可能存在开发者和代码迁移，应该指出现有md文档和代码中可能存在的绝对路径都认为结果路径是在/data/home/wly/dLLM/NLD_results目录下，如果发现目录不存在应主动询问并指导修改。3.由于可能存在开发者和代码迁移，应该指出现有md文档和代码中可能存在的绝对路径都认为项目在根目录/data/home/wly/dLLM下，如果迁移到新的根目录要能依据你的指示做修改。4.由于可能存在开发者和代码迁移，应该指出现有md文档和代码中可能存在的绝对路径都认为模型权重路径是/data1/linyewei/models/Nemotron-Labs-Diffusion-8B，本地数据集目录路径是/data1/linyewei/datasets/NLD，环境是nld_sglang，如果后续出现在新服务器上无法找到模型权重或数据集等问题应主动询问并指导修改。先不要修改文档，阅读这两份文档当前状态并告诉我是否明白我的意思，是否能完成。
+
+好的，现在我想做一个新的观察实验，我的构想是在batch size较大，并行度较高的serving场景下，能否为每个request灵活选择block size，例如对于接收率较低的阶段就采用一个小block size减少计算浪费。基于此主要想观察三个问题：1.block size本身是否对解码接收率有较大影响，例如如果一次block size=32的draft在verify时接收了6个token，是否意味着这一步采用block size=16或8就行，如果采用block size=8是否还能接收6个token，还是由于lookahead长度的减少相应接收长度也会减少？如果会减少的话会减少多少？换个角度说block size=32配置相比block size=8/16配置下TPF的提升是来源于部分轮接收数量超过了8或16还是lookahead更长使得接收长度即使都在8或16以下也有提升？我的初步方案是在block size=16的基础配置下，每一轮中还分别进行8或32的block size的模拟起草尝试，并记录8/16/32分别验证的接收长度，但是我还没想好具体如何验证和定量评估，你有什么实验设计和指标记录的建议吗？2.是否能通过历史信息(例如上一轮confidence或接收长度)来指导当前轮的block size，例如发现过去n轮平均接收长度是3，就采用block size=8；发现过去n轮平均接收长度是5，就采用block size=16；发现过去n轮平均接收长度是7，就采用block size=32。(3,5,7都是我随便举的例子，不是就让你验证这3个值，我只是想表达通过历史信息的接收率/confidence)是否能指导当前轮的最优block size。同样我也没想好实验方案该怎么设计。3.以及当这一点与上一点耦合时，例如确实在相同上下文下采用32的block size能接收6个，采用8的block size会有一定衰减接收不足6个，但是我是否能通过当前序列历史信息的接收率/confidence评估接收数量随block size的衰减程度，从而指导block size的选取？以上三个问题请你认真思考，先不要改代码，先分析是否理解我的意思以及我想观察的这三点是否合理，如果没问题的话给我你认为最好的能验证这些的实验设计，注意方便的话在一轮实验中验证这些点，不方便的话也可以给多轮实验验证的方案。
+
+请先不要修改任何文件、提交 Git、下载内容或启动 GPU 实验。请以/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory/codexnote.md作为项目交接入口，完整阅读该文档，并严格按照其中的步骤对/data/home/wly/dLLM/Nemotron-Labs-Diffusion项目完成只读对齐；同时依据当前源码、本地 checkpoint 配置、论文原文和已有成功实验产物交叉核验。确保依据指南完成对当前模型推理的深入理解和项目当前状态的对齐，之后可以无缝衔接开展后续实验和解读。完成后请用简洁清单汇报：实时 Git HEAD 与工作树状态、已阅读的资料和关键源码、对Nemotron-Labs-Diffusion算法及推理调用链的理解、各项实验的当前进度与指标性质，以及文档和实时状态之间是否存在冲突。不要从零重做已有调研，也不要擅自改动项目；汇报后等待我的下一项任务。
+
+很好，我认可你对第一阶段实验的定义和分析，现在请你首先设计第一阶段的实验，并记录能充分解决问题1并为问题2/3提供参照的各项指标。注意：1.指标不需要记录针对我的例子直接报告A32=6，这只是我为了说明我的想法举的例子。2.以block size=16为基准，需要测试block size=4/8/16/32，并且注意不只是4/8/16和32比，还有4/8和16比，4和8比。也都要相应记录S(L1,L2,k) = P(A_L1 ≥ k | A_L2_ ≥ k),  k ≤ L，其中k取值从1到L1+1。3.由于每次都要做不同block size的draft-verify模拟，计算总成本肯定会增加，这一点端到端效率层面先不要考虑，不用记录具体时间，显存占用等指标。4.论文的复现实验和此前的各项实验之后还需要进行，所以这一个新实验所需的代码不能影响和干扰此前的代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展新实验。5.新实验的接口代码文件放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/observations下新建一个子文件夹存放，实验结果文件存放到/data/home/wly/dLLM/NLD_results/observations下，和此前实验一样建立带时间戳的子文件夹。子文件夹内还要在建立后就写一个settings文件记录这一轮实验是做什么，超参设置是什么样。6.写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。7.你应该在修改过程中逐步及时自检和测试。你应该自行选择显存够用的GPU，不一定强求显存或计算当前占用为0的空GPU。全部改完后不需要做一个数据集的完整测试，只要smoke test保全链路能跑通且逻辑无误就行。注意不要一直征求我的权限或询问我。我给你极大的权限可以自主修改任何代码和进行任何实验。整个过程可能较久，你应该逐步完成，严格满足我的要求，不要怕麻烦或降级需求。除非我打断你，你应该自主一直运行下去直到任务完成。8.实验全部完成后应该在/data/home/wly/dLLM/NLD_results/observations对应的结果子文件夹内生成一个md文档，记录对实验结果的统计，所有统计结果要包含除了AIME24以外各个数据集的结果和平均(考虑不同样本数的各个数据集权重一样，防止样本数很多的数据集数据盖掉样本数少的数据集数据)并整理成表格，各个表格中涉及的所有变量参数都要配上相应的中文解释含义和简单的举例说明，所有表格的列要居中对齐，但是尽可能压缩每一列的宽度，只要能放下哪一列的最长字段就行不要留额外空格，变量参数名称尽可能压缩。这个文档不应该等所有数据集运行完后才写，应该在最开始就建立好模板，每一个数据集完成后就在文档内追加，便于我及时查看已完成数据集的实验结果。先不要改代码，先告诉我你是否能明白我的意思，并做分析，这个实验是否可行？
+
+好的，现在开始写代码和落文档吧，如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求，不要怕麻烦或降级需求。
+
+好的，现在实验已经正式开始运行了。在等待的过程中，我们回到此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method/NLD_PyTorch_NeMoSkills_confidence_overlap_linearspec_zh.md所记录的重起草优化方案。在原本的方案中，识别潜在错误位置的方式是左向右寻找第一个严格满足 `token_y_drop_pct > drop_pct_threshold` 的位置 `p`，默认阈值是 0.15。但是这种硬编码的阈值既无法适应不同数据集和不同样本，也无法适应某个样本在response过程不同阶段的解码差异。我希望探究能否有更adaptive的方式，能通过历史状态(例如上1/2/4轮)的特征(例如历史的验证通过、错误位置的confidence、及其之间关系，如差值或比例)给出更精准的当前draft步的错误位置的预测。但是我还没想好具体如何验证和定量评估，你有什么实验设计和指标记录的建议吗？这一轮实验不用实际做draft-verify overlap，目标是寻找和验证比硬阈值指标更好的寻找验证不通过位置的方案。先不要改代码，先分析是否理解我的意思以及我想观察的是否合理，如果没问题的话给我你认为最好的能验证和寻找指标的实验设计方案。
+
+我不太理解你的方案，你的意思是不是做一个最优策略的搜索和检验，而是训练一个寻找验证不通过位置的模块吗？
+
+明白了，现在请你编写实验代码搜索和验证免训练的最优策略吧，注意：1.新实验应该与此前实验独立，不应依赖正在运行或此前运行的实验结果，需要的话做真实的重新推理。2.在早期搜索和选择阶段可以只选择在一个测试子集上做，但是最后寻找的最优策略要是经过尽可能多数据验证并给出在所有数据集(排除AIME24)上该策略的结果的。3.所寻找的最优策略应该是当前所有数据集(排除AIME24)上的尽可能全局最优，而不是只在部分数据集奏效或需要为每个数据集设计一套策略或超参。4.论文的复现实验和此前的各项实验之后还需要进行，所以这一个新实验所需的代码不能影响和干扰此前的代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展新实验。5.新实验的接口代码文件放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/observations下新建一个子文件夹存放，实验结果文件存放到/data/home/wly/dLLM/NLD_results/observations下，和此前实验一样建立带时间戳的子文件夹。子文件夹内还要在建立后就写一个settings文件记录这一轮实验是做什么，超参设置是什么样。6.写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。7.你应该在修改过程中逐步及时自检和测试。你应该自行选择显存够用的GPU，不一定强求显存或计算当前占用为0的空GPU。全部改完后不需要做一个数据集的完整测试，只要smoke test保全链路能跑通且逻辑无误就行。注意不要一直征求我的权限或询问我。我给你极大的权限可以自主修改任何代码和进行任何实验。整个过程可能较久，你应该逐步完成，严格满足我的要求，不要怕麻烦或降级需求。除非我打断你，你应该自主一直运行下去直到任务完成。8.实验全部完成后应该在/data/home/wly/dLLM/NLD_results/observations对应的结果子文件夹内生成一个md文档，记录对实验结果、各种策略和设置的统计，所有统计结果要包含除了AIME24以外各个数据集的结果和平均(考虑不同样本数的各个数据集权重一样，防止样本数很多的数据集数据盖掉样本数少的数据集数据)并整理成表格，各个表格中涉及的所有变量参数都要配上相应的中文解释含义和简单的举例说明，所有表格的列要居中对齐，但是尽可能压缩每一列的宽度，只要能放下哪一列的最长字段就行不要留额外空格，变量参数名称尽可能压缩。这个文档不应该等所有数据集运行完后才写，应该在最开始就建立好模板，每完成一部分就在文档内追加，便于我及时查看当前实验进度和结果。先不要改代码，先告诉我你是否能明白我的意思，并做分析，这个实验是否可行？
+
+好的，现在开始写代码和落文档吧，如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求，不要怕麻烦或降级需求。
+
+此前做的试图为每个request灵活选择block size的第一阶段实验，即/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_PyTorch_LinearSpec_block_size_shadow_zh.md所描述的实验正在进行中，已经跑出了一部分结果，参见/data/home/wly/dLLM/NLD_results/observations/pytorch_linearspec_block_size_shadow_results，请你结合目前跑出的这些数据结果帮我分析下当前实验结论，包括block size缩短是否造成靠前部分接收率衰减，此前我所考虑的灵活选择block size是否可行等等。
+
+明白了，我不需要通过历史信息判断Decay情况，我就想通过历史信息能预测当前轮接收能力，从而指导选择动态的block size。针对这一点目前实验体现出的相关性到底怎么样，怎么解读，例如预测正确的概率是多少，偏差是多少？结合当前已经跑出的各种历史信息指标和数据详细给我解读。
+
+好的，现在回到此前做的通过历史状态(例如上1/2/4轮)的特征(例如历史的验证通过、错误位置的confidence、及其之间关系，如差值或比例)给出更精准的当前draft步的错误位置的预测的实验，即/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_PyTorch_LinearSpec_adaptive_failure_locator_search_zh.md所描述的实验正在进行中，已经跑出了一部分结果，参见/data/home/wly/dLLM/NLD_results/observations/adaptive_failure_locator_search_results/adaptive_failure_locator_20260828_203527，请你结合目前跑出的这些数据结果帮我分析下当前实验结论，当前实验结果是否能反映出有更优的adaptive方式寻找潜在验证不通过的位置？
+
+我希望的是在命中更多从左向右首个错误位置的同时，减少对验证通过的正确位置的误报，当前最优的margin_risk策略相比此前的drop_pct_threshold=0.15的策略在命中从左向右首个错误位置的命中率，对验证通过的正确位置的误报率，总报告率上分别有什么变化？现在数据能得到吗？
+
+## 问题 2：用历史预测最优 block                                                                                                            14:20:26 [77/361]
+
+  不要先手工固定“平均接收 3→L8、5→L16、7→L32”。更合适的是预测不同 L 的边际收益，再结合成本选择。
+
+  每轮开始前可用的历史特征建议包括：
+
+  - 最近 1/2/4/8 轮的 M、A、A/L、EWMA。
+  - full-block 次数、连续低接收/高接收轮数。
+  - 上轮 accepted/rejected confidence 均值、最小值、斜率、首次明显下降位置。
+  - 上轮 mismatch 位置、correction confidence、top1-top2 margin。
+  - 当前已生成长度、context 长度、generation phase。
+  - 当前 serving 的 active batch、各 block bucket 占用和 queue pressure。
+
+  训练目标不要只做三分类，可以先预测：
+
+  A8, A16, A32
+  G16 = A16 - A8
+  G32 = A32 - A16
+
+  然后用实测成本 C_L 选择：
+
+  L* = argmax_L  predicted_useful_tokens(L) / predicted_cost(L)
+
+  建议模型顺序：
+
+  1. fixed L8/L16/L32；
+  2. last-round 或 EWMA 阈值；
+  3. 线性/序数回归；
+  4. GBDT 等小型非线性模型。
+
+  训练/测试必须按完整 request 或 benchmark 划分，不能随机拆 round，否则相邻轮会产生严重数据泄漏。
+
+  评价重点不是分类准确率，而是：
+
+  - 相对 per-state oracle 的 utility regret。
+  - 相对固定 L8/L16/L32 的 token loss 和计算节省。
+  - under-selection：选小了而损失的接收 token。
+  - over-selection：选大了但没有获得额外 token。
+  - policy 切换频率和稳定性。
+  - 估计 TPF、Tok/QTok、吞吐与 P95 latency。
+
+## 问题 3：预测缩短 block 后的衰减                                                                                                         14:20:37 [36/361]
+
+  第一阶段数据已经给出监督目标：
+
+  Decay8  = min(A32, 8)  - A8
+  Decay16 = min(A32, 16) - A16
+
+  使用与问题 2 相同的历史特征，分别做：
+
+  - 回归：预测 Decay8/Decay16 的数值。
+  - 分类：预测 Decay_L>0、Decay_L≥2 等风险事件。
+  - 校准：按预测风险分桶，检查真实平均衰减是否单调。
+
+  最终可以用多任务模型同时预测：
+
+  潜在接收能力 A32
+  缩短到 16 的衰减 Decay16
+  缩短到 8 的衰减 Decay8
+
+  这比仅预测“下一轮接收长度”更贴合你的第三个问题。
+
+  还可以额外比较一个“当前 L8 probe”方案：先做 L8 draft，用当前轮 confidence 判断是否升级到 L16/L32。它可能比纯历史更准，但会多一次 draft，而且 L8 draft 不能无
+  损扩展成 L16/L32，因此必须把 probe 成本计入，不能当作免费信号。
+
+  ## 大 batch serving 的额外约束
+
+  每请求动态 L 只有在 scheduler 能利用它时才会省计算：
+
+  - 如果 L8、L16、L32 混在一个 dense batch 中并统一 padding 到 32，forward 往往仍按 32 计算，小 block 几乎不省成本。
+  - 更现实的实现是设置 8/16/32 三个 bucket，按选择结果分别组成 CUDA graph batch。
+  - 但 bucket 会引入 batch fragmentation 和额外等待，因此还要记录 bucket occupancy、padding ratio、物理 launch 数和 scheduler wait。
+
+  所以“每请求最优 L”和“整个 serving batch 最优调度”不是完全相同的问题。
+
+  ## 推荐实验顺序
+
+  一轮 shadow 数据采集可以完成：
+
+  - block 容量效应与 lookahead 效应分解；
+  - 历史特征对 A8/A16/A32 的预测；
+  - 历史特征对 Decay8/Decay16 的预测；
+  - adaptive policy 的离线 replay 和 oracle 上界。
+
+  但它不能最终证明真实 serving 吞吐会提升，因为 canonical 轨迹固定为 L16，而且 shadow 会污染计时。之后还需要第二阶段在线验证：
+
+  - 固定 L8、L16、L32；
+  - 最佳 history-only policy；
+  - 如有价值，再测 history+current-probe；
+  - 使用相同输入顺序、GPU、并发和随机种子；
+  - 分别测 batch/concurrency=1 的语义控制，以及 16/32 等高并发 serving；
+  - 报告任务 Accuracy、token 序列一致性、TPF、Tok/QTok、吞吐、P50/P95 latency、bucket 利用率。

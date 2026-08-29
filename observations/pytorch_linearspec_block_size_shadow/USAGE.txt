@@ -1,0 +1,58 @@
+Usage: bash observations/pytorch_linearspec_block_size_shadow/eval_block_size_shadow.sh [options]
+
+Paired same-state native LinearSpec observation. L16 is the default and only
+committed trajectory; L4/L8/L32 are discarded shadows. See the Chinese manual
+under configs/observations for scientific definitions and complete examples.
+
+Experiment:
+  --benchmarks LIST             Comma-separated NeMo-Skills specs (default: formal ten datasets)
+  --block-sizes LIST            Paired sizes (default: 4,8,16,32)
+  --anchor-block-size N         Only branch allowed to commit (default: 16)
+  --block-size N                Alias for --anchor-block-size
+  --history-windows LIST        Historical windows saved for Q2/Q3 (default: 1,2,4,8)
+  --trace-detail LEVEL          scalar, position, or tokens (default: position)
+  --include-boundary-rounds     Include EOS/budget-boundary rounds in primary summaries
+
+Model/decoding:
+  --mode MODE                   linearspec_lora or linearspec_base (default: linearspec_lora)
+  --model PATH                  Local model path
+  --served-model-name NAME      OpenAI-compatible model label
+  --lora-path PATH              Default: <model>/linear_spec_lora
+  --dtype DTYPE                 bfloat16, float16, or float32
+  --threshold V                 Native draft confidence threshold (default: 0)
+  --temperature V               Native temperature; formal Q1 uses 0
+  --top-p V                     Recorded/forwarded only; native method does not apply it
+  --tokens N                    Maximum completion tokens (default: 8192)
+  --context-length N            Prompt+anchor budget+shadow guard (default: tokens+2048)
+  --max-thinking-tokens N       Force </think> after the configured budget
+
+GPU/runtime:
+  --gpu-device ID|auto          Explicit physical GPU or automatic selection (default: auto)
+  --gpu-devices ID|auto         Alias; this native backend remains single-GPU
+  --gpu-candidates LIST|all     Candidate IDs for auto selection (default: all)
+  --gpu-min-free-gb V           Auto-selection memory floor (default: 24)
+  --gpu-wait-timeout-s N        Wait for a suitable GPU; 0 fails immediately
+  --gpu-poll-interval-s N       GPU polling interval (default: 30)
+  --gpu-memory-reserve-gb V     Actually reserve V GiB before model loading
+  --port N                      Explicit port; otherwise search from 34000+GPU ID
+  --batch-size 1                Compatibility parameter; native engine requires 1
+  --client-concurrency N        Concurrent NeMo clients; GPU model calls stay serialized
+  --num-chunks N                Client-side chunks (default: client concurrency)
+
+Dataset/prompt/output:
+  --max-samples N               Limit each benchmark to N samples
+  --quick-test                  NeMo-Skills quick-test mode
+  --enable-thinking             Enable thinking in the server chat template
+  --disable-thinking            Explicit non-thinking evaluation configuration
+  --keep-thinking               Preserve thinking in NeMo outputs
+  --strip-thinking              Strip thinking and rescore where supported
+  --math-prompt-config NAME     Override math benchmark prompt config
+  --nemo-skills-data-dir DIR    Prepared dataset/cache root
+  --google-research-dir DIR     IFEval google-research checkout
+  --prepare-missing-data        Permit NeMo-Skills to prepare data when no local cache exists
+  --output-path DIR             Result root; a timestamped child is always created
+  --pytorch-python PATH         Model server Python
+  --eval-python PATH            NeMo-Skills Python
+  --keep-runtime                Compatibility flag; observation audit artifacts are retained
+  --dry-run                     Validate and print resolution without creating files/loading model
+  -h, --help                    Show this text

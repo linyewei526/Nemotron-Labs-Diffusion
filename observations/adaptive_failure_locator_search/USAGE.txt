@@ -1,0 +1,53 @@
+Usage:
+  bash observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.sh [options]
+
+Core:
+  --mode linearspec_lora|linearspec_base
+  --benchmarks SPEC[,SPEC...]       NeMo-Skills dataset:repeats list
+  --block-size N                    LinearSpec block size, default 16
+  --history-windows LIST            default 1,2,4
+  --aggregations LIST               subset of mean,median,ewma
+  --grid compact|standard|extended  training-free rule grid
+  --threshold X                     draft unmask threshold, default 0
+  --temperature X --top-p X
+  --tokens N --context-length N
+  --max-samples N --quick-test
+
+Global search/validation:
+  --split-seed N
+  --search-ratio X                  default 0.6
+  --selection-ratio X               default 0.2; remainder is untouched test
+  --shortlist N                     candidates sent from search to selection
+  --report-top N
+  --search-max-rounds-per-dataset N 0 means no cap
+  --bootstrap-replicates N
+  --include-boundary-rounds
+
+GPU/runtime:
+  --gpu-device ID|auto
+  --gpu-candidates LIST|all
+  --gpu-min-free-gb X
+  --gpu-wait-timeout-s N
+  --gpu-poll-interval-s N
+  --gpu-memory-reserve-gb X
+  --port N                          omitted means automatic free port
+  --client-concurrency N --num-chunks N
+
+Model/data/output:
+  --model PATH --lora-path PATH --dtype DTYPE
+  --served-model-name NAME
+  --output-path PATH
+  --pytorch-python PATH --eval-python PATH
+  --nemo-skills-data-dir PATH --google-research-dir PATH
+  --prepare-missing-data            may create/download missing NeMo data
+
+Prompt/thinking:
+  --enable-thinking | --disable-thinking
+  --keep-thinking | --strip-thinking
+  --max-thinking-tokens N
+  --math-prompt-config PATH
+  --trace-detail position|tokens
+
+Other:
+  --dry-run                         validate/resolve only; creates no result directory
+  -h, --help
