@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+"""Merge isolated fixed-margin-risk overlap stats into NeMo-Skills metrics."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+from typing import Any, Iterable, Optional
+
+
+OUTCOME_STATES = (
+    "before_candidate_error",
+    "candidate_fixed_by_alternative",
+    "candidate_wrong_alternative",
+    "after_candidate_error",
+    "full_block_bonus",
+)
+OUTCOME_SUM_FIELDS = (
+    "count",
+    "current_accept_sum",
+    "next_count",
+    "paired_current_accept_sum",
+    "next_accept_sum",
+    "next_minus_current_sum",
+)
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+        f.write("\n")
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return rows
+
+
+def as_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def as_int(value: Any) -> Optional[int]:
+    result = as_float(value)
+    if result is None or not result.is_integer():
+        return None
+    return int(result)
+
+
+def rounded(value: Optional[float], digits: int = 6) -> Optional[float]:
+    return None if value is None else round(float(value), digits)
+
+
+def percentile(values: list[float], quantile: float) -> Optional[float]:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * quantile
+    low = math.floor(position)
+    high = math.ceil(position)
+    if low == high:
+        return ordered[low]
+    return ordered[low] * (high - position) + ordered[high] * (position - low)
+
+
+def distribution(values: Iterable[Optional[float]]) -> dict[str, Optional[float]]:
+    clean = [float(value) for value in values if value is not None]
+    return {
+        "mean": rounded(sum(clean) / len(clean)) if clean else None,
+        "p50": rounded(percentile(clean, 0.50)),
+        "p90": rounded(percentile(clean, 0.90)),
+        "p95": rounded(percentile(clean, 0.95)),
+        "p99": rounded(percentile(clean, 0.99)),
+    }
+
+
+def summarize(rows: list[dict[str, Any]], wall_time_s: Optional[float]) -> dict[str, Any]:
+    ok_rows = [row for row in rows if row.get("ok") is True]
+    failed_rows = [row for row in rows if row.get("ok") is not True]
+    prompt_tokens = sum(as_float(row.get("prompt_tokens")) or 0.0 for row in ok_rows)
+    completion_tokens = sum(as_float(row.get("completion_tokens")) or 0.0 for row in ok_rows)
+    raw_generated_tokens = sum(as_float(row.get("raw_generated_tokens")) or 0.0 for row in ok_rows)
+    total_nfe = sum(as_float(row.get("nfe")) or 0.0 for row in ok_rows)
+    model_time_s = sum(as_float(row.get("model_time_s")) or 0.0 for row in ok_rows)
+    sum_request_time_s = sum(as_float(row.get("request_time_s")) or 0.0 for row in ok_rows)
+    tpf = completion_tokens / total_nfe if total_nfe > 0 else None
+
+    summary = {
+        "attempted_request_count": len(rows),
+        "request_count": len(ok_rows),
+        "failed_request_count": len(failed_rows),
+        "successful_request_rate": rounded(
+            len(ok_rows) / len(rows) if rows else None
+        ),
+        "oom_skipped_request_count": sum(
+            1
+            for row in failed_rows
+            if row.get("oom_skipped_for_efficiency") is True
+            or "OutOfMemory" in str(row.get("error_type") or "")
+        ),
+        "prompt_tokens": round(prompt_tokens, 4),
+        "completion_tokens": round(completion_tokens, 4),
+        "raw_generated_tokens": round(raw_generated_tokens, 4),
+        "forward_passes": round(total_nfe, 4),
+        "tokens_per_forward_pass": rounded(tpf, 4),
+        "average_forward_passes_per_sample": rounded(
+            total_nfe / len(ok_rows) if ok_rows else None, 4
+        ),
+        "average_completion_tokens": rounded(
+            completion_tokens / len(ok_rows) if ok_rows else None, 4
+        ),
+        "model_generation_time_s": rounded(model_time_s),
+        "sum_request_time_s": rounded(sum_request_time_s),
+        "benchmark_wall_time_s": rounded(wall_time_s),
+        "model_output_tokens_per_s": rounded(
+            completion_tokens / model_time_s if model_time_s > 0 else None, 4
+        ),
+        "benchmark_wall_output_tokens_per_s": rounded(
+            completion_tokens / wall_time_s
+            if wall_time_s is not None and wall_time_s > 0
+            else None,
+            4,
+        ),
+        "benchmark_wall_requests_per_s": rounded(
+            len(ok_rows) / wall_time_s
+            if wall_time_s is not None and wall_time_s > 0
+            else None,
+            6,
+        ),
+        "request_time_s": distribution(
+            as_float(row.get("request_time_s")) for row in ok_rows
+        ),
+        "queue_wait_s": distribution(
+            as_float(row.get("queue_wait_s")) for row in ok_rows
+        ),
+        "per_request_model_time_s": distribution(
+            as_float(row.get("model_time_s")) for row in ok_rows
+        ),
+        "per_request_model_output_tokens_per_s": distribution(
+            as_float(row.get("model_output_tokens_per_s")) for row in ok_rows
+        ),
+        "finish_reasons": {},
+        "failure_types": {},
+    }
+    for row in ok_rows:
+        reason = str(row.get("finish_reason") or "unknown")
+        summary["finish_reasons"][reason] = summary["finish_reasons"].get(reason, 0) + 1
+    for row in failed_rows:
+        error_type = str(row.get("error_type") or "unknown")
+        summary["failure_types"][error_type] = summary["failure_types"].get(error_type, 0) + 1
+    modes = sorted({str(row.get("mode")) for row in ok_rows if row.get("mode")})
+    summary["modes"] = modes
+    summary["top_p_requested"] = sorted(
+        {
+            value
+            for row in ok_rows
+            if (value := as_float(row.get("top_p_requested"))) is not None
+        }
+    )
+    summary["top_p_applied"] = all(
+        bool(row.get("top_p_applied")) for row in ok_rows
+    ) if ok_rows else None
+    summary["top_k_requested"] = sorted(
+        {
+            value
+            for row in ok_rows
+            if (value := as_int(row.get("top_k_requested"))) is not None
+        }
+    )
+    summary["top_k_applied"] = all(
+        bool(row.get("top_k_applied")) for row in ok_rows
+    ) if ok_rows else None
+    overlap_sum_fields = [
+        "physical_nfe",
+        "processed_rows",
+        "processed_query_tokens",
+        "rounds",
+        "normal_draft_forwards",
+        "normal_verify_forwards",
+        "fused_verify_draft_forwards",
+        "rounds_without_candidate",
+        "prefetch_attempts",
+        "prefetch_verified_hits",
+        "prefetch_hits",
+        "prefetch_saved_draft_forwards",
+        "prefetch_discarded_before_candidate",
+        "prefetch_discarded_candidate_accepted",
+        "prefetch_discarded_wrong_b",
+        "prefetch_discarded_eos",
+        "prefetch_discarded_thinking_budget",
+        "prefetch_skipped_no_future_round",
+        "prefetch_skipped_context_limit",
+        "prefetch_skipped_thinking_budget",
+        "candidate_position_sum",
+        "prospective_query_tokens",
+    ]
+    overlap = {
+        key: int(
+            sum(
+                as_float((row.get("overlap") or {}).get(key)) or 0.0
+                for row in ok_rows
+            )
+        )
+        for key in overlap_sum_fields
+    }
+    attempts = overlap["prefetch_attempts"]
+    overlap["prefetch_hit_rate"] = rounded(
+        overlap["prefetch_hits"] / attempts if attempts else None
+    )
+    overlap["prefetch_verified_hit_rate"] = rounded(
+        overlap["prefetch_verified_hits"] / attempts if attempts else None
+    )
+    overlap["average_candidate_position"] = rounded(
+        overlap["candidate_position_sum"] / attempts if attempts else None
+    )
+    overlap["saved_draft_fraction_of_rounds"] = rounded(
+        overlap["prefetch_saved_draft_forwards"] / overlap["rounds"]
+        if overlap["rounds"]
+        else None
+    )
+    outcome_states: dict[str, dict[str, int | float | None]] = {}
+    for state in OUTCOME_STATES:
+        aggregate: dict[str, int | float | None] = {
+            key: int(
+                sum(
+                    as_float(
+                        (((row.get("overlap") or {}).get("outcome_states") or {}).get(state) or {}).get(key)
+                    )
+                    or 0.0
+                    for row in ok_rows
+                )
+            )
+            for key in OUTCOME_SUM_FIELDS
+        }
+        count = int(aggregate["count"] or 0)
+        next_count = int(aggregate["next_count"] or 0)
+        aggregate.update(
+            {
+                "share_of_attempts": rounded(count / attempts if attempts else None),
+                "current_accept_avg": rounded(
+                    int(aggregate["current_accept_sum"] or 0) / count if count else None
+                ),
+                "next_coverage": rounded(next_count / count if count else None),
+                "paired_current_accept_avg": rounded(
+                    int(aggregate["paired_current_accept_sum"] or 0) / next_count
+                    if next_count
+                    else None
+                ),
+                "next_accept_avg": rounded(
+                    int(aggregate["next_accept_sum"] or 0) / next_count
+                    if next_count
+                    else None
+                ),
+                "next_minus_current_avg": rounded(
+                    int(aggregate["next_minus_current_sum"] or 0) / next_count
+                    if next_count
+                    else None
+                ),
+            }
+        )
+        outcome_states[state] = aggregate
+    overlap["outcome_states"] = outcome_states
+    overlap["outcome_state_count_sum"] = sum(
+        int(outcome_states[state]["count"] or 0) for state in OUTCOME_STATES
+    )
+    overlap["outcome_partition_valid"] = (
+        overlap["outcome_state_count_sum"] == attempts
+    )
+    summary["overlap"] = overlap
+    summary["margin_risk_thresholds"] = sorted(
+        {
+            value
+            for row in ok_rows
+            if (value := as_float(row.get("margin_risk_threshold"))) is not None
+        }
+    )
+    summary["peak_gpu_memory_gib"] = distribution(
+        as_float(row.get("peak_gpu_memory_gib")) for row in ok_rows
+    )
+    return summary
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--metrics-json", required=True)
+    parser.add_argument("--request-stats-file", required=True)
+    parser.add_argument("--benchmark", default="")
+    parser.add_argument("--wall-time-s", type=float, default=None)
+    parser.add_argument("--summary-json", default="")
+    parser.add_argument("--create-metrics-if-missing", action="store_true")
+    parser.add_argument("--accuracy-status", default="available")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    metrics_path = Path(args.metrics_json)
+    if not metrics_path.is_file() and not args.create_metrics_if_missing:
+        print(f"Metrics file not found: {metrics_path}")
+        return 1
+    rows = read_jsonl(Path(args.request_stats_file))
+    if not rows:
+        print(f"No request stats found: {args.request_stats_file}")
+        return 1
+    if not any(row.get("ok") is True for row in rows):
+        print(f"Request stats contain no successful generations: {args.request_stats_file}")
+        return 1
+    native = summarize(rows, args.wall_time_s)
+    payload = {
+        "backend": "native_pytorch_margin_risk_overlap",
+        "benchmark": args.benchmark,
+        "accuracy_status": args.accuracy_status,
+        "decode": native,
+        "metric_notes": {
+            "model_output_tokens_per_s": "completion tokens divided by synchronized native generation time; excludes prompt formatting/tokenization and NeMo scoring",
+            "benchmark_wall_output_tokens_per_s": "completion tokens divided by the complete NeMo-Skills benchmark command wall time",
+            "tokens_per_forward_pass": "returned completion tokens divided by physical encoder invocations counted by the isolated overlap decoder",
+            "top_p_applied": "false for current native NLD generation methods; top_p is accepted by the OpenAI API but the model methods expose temperature only",
+            "top_k_applied": "false for current native NLD generation methods; top_k is accepted by the OpenAI API but is not forwarded to the model methods",
+            "physical_nfe": "one encoder invocation counts as one forward even when it contains verifier and prospective rows",
+            "processed_rows": "sum of sequence rows processed across encoder invocations; reported beside physical NFE to expose fused batch work",
+            "prefetch_saved_draft_forwards": "number of prefetched full draft blocks actually consumed instead of issuing a normal draft forward",
+            "outcome_states": "five mutually-exclusive outcomes among actual overlap attempts; next-round means use only attempts with an observed immediate next verifier",
+            "next_coverage": "attempts with an observed immediate next verifier divided by state count; terminal rounds are not imputed as zero",
+            "request_count": "successful requests included in efficiency aggregates",
+            "attempted_request_count": "all server requests, including requests skipped after CUDA OOM",
+            "failed_request_count": "requests excluded from efficiency aggregates; inspect failure_types and oom_skipped_request_count",
+            "successful_request_rate": "request_count divided by attempted_request_count; required when interpreting partial efficiency coverage",
+            "oom_skipped_request_count": "CUDA OOM requests returned as empty placeholders in efficiency-only mode and excluded from all efficiency means",
+        },
+    }
+
+    if args.dry_run:
+        print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    metrics = read_json(metrics_path) if metrics_path.is_file() else {}
+    metrics["pytorch_margin_risk_overlap"] = payload
+    if native["average_forward_passes_per_sample"] is not None:
+        metrics["average_nfe"] = native["average_forward_passes_per_sample"]
+        metrics["nfe_count"] = native["request_count"]
+    if native["tokens_per_forward_pass"] is not None:
+        metrics["tokens_per_forward_pass"] = native["tokens_per_forward_pass"]
+        metrics["tpf"] = native["tokens_per_forward_pass"]
+    if native["model_output_tokens_per_s"] is not None:
+        metrics["model_output_tokens_per_s"] = native["model_output_tokens_per_s"]
+        metrics["tps"] = native["model_output_tokens_per_s"]
+
+    summary_path = (
+        Path(args.summary_json)
+        if args.summary_json
+        else metrics_path.parent / "pytorch_margin_risk_overlap_metrics_summary.json"
+    )
+    write_json(metrics_path, metrics)
+    write_json(summary_path, payload)
+    print(f"Updated {metrics_path}")
+    print(f"Wrote {summary_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

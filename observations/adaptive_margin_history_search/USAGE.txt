@@ -1,0 +1,14 @@
+历史自适应 margin_risk 首错定位（免训练）
+
+完整中文说明：
+  configs/observations/NLD_PyTorch_LinearSpec_adaptive_margin_history_search_zh.md
+
+帮助：
+  bash observations/adaptive_margin_history_search/eval_adaptive_margin_history.sh --help
+
+本轮九数据集全数据全局搜索必须显式传：
+  --selection-protocol full_data --search-max-rounds-per-dataset 0
+
+full_data 会让每个候选使用所有非 AIME24 request 的全部有效轮，先在数据集内
+汇总、再让数据集等权平均；不切分、不截断、不设 shortlist。默认 split 仅为兼容
+旧命令，仍执行 60/20/20 held-out 协议。
