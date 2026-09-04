@@ -271,3 +271,72 @@ rg -n '/data/home/wly/dLLM|/data1/linyewei/models/Nemotron-Labs-Diffusion-8B|/da
 3. 已理解 efficiency-only 默认值、全数据集范围与 OOM/Cov 统计边界；
 4. 已实时核验三轮正式任务是否完成，并排除不完整旧结果；
 5. 后续修改会继续使用独立 observation/method 目录，不覆盖既有复现、搜索或正在运行的实验。
+
+---
+
+时间戳：2026-09-04 21:10:30 +0800（CST）
+
+# 2026-09-04 新增修复、动态 block 与方法对齐指南
+
+本节优先于前文 `2026-08-31` 的运行快照。新会话必须先读 `configs/memory/quicknote.md` 最后一条记录并实时审计；不要因为旧快照写着“运行中”或当前 Settings 为 `server_ready` 就自行判断完成。
+
+## 18. 先对齐 SGLang/PyTorch 修复
+
+依次读取：
+
+1. `configs/sglang_pytorch_diff/report.md`
+2. `configs/observations/NLD_SGLang_NeMoSkills_eval_pipeline_zh.md`
+3. `configs/observations/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md`
+
+需要理解的当前边界是：SGLang LinearSpec LoRA 的 CUDA Graph draft capture 必须调用已注册的 pre-draft hook；当前源码已补齐该调用。SGLang 正式 trace 会在 benchmark 前清空启动 warmup；PyTorch 当前默认 TPF 为 completion token 除以 decode encoder forward，不含 prompt prefill，同时保留 prefill/total NFE。引用修复前结果时必须检查其历史口径，不能直接和新 decode-only TPF 混比。
+
+具体根因、隔离诊断、有效/无效 smoke、逐轮对齐结果及修复位置全部以 `configs/sglang_pytorch_diff/report.md` 为准，不要重新从零排查。
+
+## 19. 动态 block size observation 阅读顺序
+
+1. 先读需求与实验目标：`configs/observations/NLD_PyTorch_LinearSpec_dynamic_block_size_history_signal_design_zh.md`。
+2. 再读正式 SGLang 手册：`configs/observations/NLD_SGLang_NeMoSkills_dynamic_block_size_history_signal_zh.md`。
+3. 按需检查 `observations/sglang_dynamic_block_history_signal/` 中的动态三分支 trace、九数据集等权搜索、报告、幂等续跑和测试。
+4. 实时结果入口为 `/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/`；数值和阶段必须读取其中 `report.md`、`search/`、`traces/`、`eval_runs/`，不要从 memory 文档推算。
+
+该实验以 SGLang+NeMo-Skills 真实推理为准，探索 block size 8/16/32，分别冻结以 8 或 16 为默认小 block 的历史信号策略；搜索和汇总始终先按数据集计算再做非 AIME24 数据集等权平均，MMLU 只使用配置的子集。当前时间戳下探索、搜索和 S8 九集验证完成，S16 仍在验证；不要清理其 runtime 或重复已经完成的阶段。
+
+旧 PyTorch block-size shadow 只完成 6 个非 AIME24 数据集，MMLU、IFEval、LiveCodeBench 失败。它仍可支持阶段性同状态分析，但不得表述为九集完整结论。
+
+## 20. 新增 method 演进顺序
+
+在 `margin_risk_multi_overlap_linearspec` 之后继续阅读：
+
+1. `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_two_plus_new_overlap_linearspec_zh.md`
+2. `method/margin_risk_two_plus_new_overlap_linearspec/`
+3. `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_conditional_rank_overlap_linearspec_zh.md`
+4. `method/margin_risk_conditional_rank_overlap_linearspec/`
+
+三种多 row 策略不能混淆：
+
+- 原 multi-overlap：最多为 P1/P2/P3 各建一个二选分支；crossing 不超过 2 时用空余 row 建 continuation。
+- two-plus-new：只为 P1/P2 建二选分支，并且每轮都尝试 continuation。
+- conditional-rank：crossing 不超过 2 时为 P1/P2 建二选并加 continuation；达到 3 时改为 P1二选、P1三选、P2二选，不建 P3 分支和 continuation。
+
+三者都是隔离 PyTorch+NeMo-Skills 实现，最多 verifier 加 3 条 speculative row，只有 causal verifier 可提交 canonical 输出/KV。阅读时继续核对递归 prospective 分析、分段 LoRA、边界保护、互斥状态、下一轮接收和 dense padding token 统计。
+
+正式结果状态以各结果目录为准：单候选和原多候选九集已完成；two-plus-new 的 0.5/0.45 九集实验均已完成；conditional-rank 的 `margin_risk_conditional_rank_overlap_20260903_154307` 在本时间戳仍为 7/9 活跃任务。
+
+## 21. 当前活跃任务与版本边界
+
+本节生成时有两项不得干扰的任务：
+
+- GPU 1：动态 block 历史信号的 S16/MATH-500 冻结验证；父入口为 `eval_dynamic_block_history.sh --stage remaining`。
+- GPU 2：conditional-rank 正式九集实验，正在 LiveCodeBench；结果为 `/data/home/wly/dLLM/NLD_results/margin_risk_conditional_rank_overlap_results/margin_risk_conditional_rank_overlap_20260903_154307/`。
+
+HEAD 为 `9a6c93e0a7962397b88c0951995aebd4305e4eae`，该提交已纳入本阶段新增代码和文档。新会话仍须重新执行 `git status --short`、进程树、GPU、Settings、metrics/error 和当前日志审计；活跃隐藏工作目录不可删除。若任务已自然结束，应更新对完成数的理解，但不要改写本历史快照。
+
+## 22. 最新对齐完成判据
+
+继续研究前，新会话应能简要确认：
+
+1. 已理解 SGLang pre-draft hook 根因、warmup 过滤及两端 decode-only TPF 口径；
+2. 已区分动态 block 的设计文档、SGLang 实现、搜索结果和两类冻结验证；
+3. 已区分原 multi、two-plus-new 与 conditional-rank 三套最多 4-row 方法；
+4. 已实时确认两项活跃任务是否完成，并保护对应进程和隐藏工作目录；
+5. 后续优先读取现有 report/trace/search，不重做已完成调研，不覆盖既有 observation/method。

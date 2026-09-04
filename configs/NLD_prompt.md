@@ -314,3 +314,9 @@ IFEval的评估也出错了，参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/
 好的，那现在来实现吧。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求和你设计的周密方案，不要怕麻烦或降级需求。
 
 现在请你：1.回忆自2026-08-31 10:37:20 +0800（CST）以来新增的各个observations和method实验。2.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个quicknote.md文档，开头是一个时间戳，内容是尽可能清晰简洁地告诉我在当前会话内，我们针对/data/home/wly/dLLM/Nemotron-Labs-Diffusion项目做了什么分析和修改，便于我查阅和其他合作者后续跟进研究。注意不用详细说明具体内容、技术点、分析等，你只需要简洁地记录目前做了哪些事，具体内容或代码可以参见哪个文档或目录等，便于我和合作者之后快速对齐当前项目进展，清晰完整精确就行，不要长篇大论。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的交接文档。3.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个codexnote.md文档，在会话最开始让你读过，开头是一个时间戳，这个文档用于之后我如果开一个全新的codex终端会话，在没有上下文的情况下，codex可以通过这个文档的指导步骤和描述对齐对当前Nemotron-Labs-Diffusion项目的理解(包括解码方式、算法原理、代码组织形式等)，对齐当前的项目进度，便于在把这个文档给codex新会话后，新会话能从当前位置和进度继续进行。这个指导文档不用把左右内容和理解都再写一遍，例如论文、算法原理、代码组织和实验复现此前已经整理在了/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs中，这个codexnote.md可以指导codex新会话怎么去读、理解和对齐当前项目。目标是我只需要告诉新会话按照这个codexnote.md的指导步骤和描述对齐对当前项目，新会话就能从当前理解和进度继续进行。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的内容文档。先不要修改文档，阅读这两份文档当前状态并告诉我是否明白我的意思，是否能完成。
+
+好的，现在回到正在进行的，我所希望的检索所需信号，能够在不破坏或少破坏下一轮接收潜力的情况下，为下一轮灵活选择合适block size的起草的实验。当前探索九集、离线搜索和 S8 九集验证已完成；S16 已完成 GSM8K、HumanEval、MBPP，正在 GPU 1 运行 MATH-500。请你结合当前已运行的结果，帮我分析是否找到合适的信号，能够通过历史信息(可能包含动态的block size历史)来指导当前轮的最优block size选择？如果有合适信号的话，效果怎么样？对计算量和TPF的影响怎么样？
+
+L8的P(worth32),P(worth16),L16的P(worth32),P(safe8)分别是怎么设计的？
+
+现在项目要对接到另一台服务器上，/data/home/wly/dLLM/NLD_results内的庞大数据不搬过去，现在请你基于刚刚的理解，把灵活选择合适block size的核心实验结果、方法和结果详细解读和举例、对当前进度和方案的理解和评估都以md文档形式写入/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/dynamic block size，便于后续另一台服务器的对接和后续实验设计。注意你现在写的文档既要兼顾清晰简洁、又要解释清楚、包含必要数据和结果。可以分多个md文档写入。先不要写，先回答明白我意思吗？

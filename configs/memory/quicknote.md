@@ -98,3 +98,29 @@
 - 等待三轮活跃实验自然完成，再检查最终 Settings、metrics/error、覆盖率、增量报告和隐藏工作目录清理情况。
 - 解读效率时以各数据集等权结果为主；若 Cov 小于 100%，明确结果只覆盖成功请求，不能当作全请求均值。
 - 不要从零重做上述搜索；优先读取对应 report、trace/summaries 和方法手册后继续分析或设计下一轮独立实验。
+
+---
+
+时间戳：2026-09-04 21:10:30 +0800（CST）
+
+## 增量交接记录
+
+1. SGLang/PyTorch 推理口径修复
+   - 已完成 LinearSpec 差异排查，根因、对照 trace、修复与回归记录见 `configs/sglang_pytorch_diff/report.md`；SGLang CUDA Graph 已正确调用 pre-draft hook，启动 warmup trace 已过滤。
+   - 当前 PyTorch 复现、相关 observation 和 method 的 TPF 均改为排除 prompt prefill 的 decode-only 口径，同时保留含 prefill 的审计字段；接口变化见两份 NeMo-Skills pipeline 手册。
+
+2. 动态 block size observation
+   - 需求与方案沉淀在 `configs/observations/NLD_PyTorch_LinearSpec_dynamic_block_size_history_signal_design_zh.md`。
+   - SGLang 真实 trace、九数据集等权离线搜索和冻结验证代码位于 `observations/sglang_dynamic_block_history_signal/`，手册为 `configs/observations/NLD_SGLang_NeMoSkills_dynamic_block_size_history_signal_zh.md`，结果为 `/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/`。
+   - 当前探索九集、离线搜索和 S8 九集验证已完成；S16 已完成 GSM8K、HumanEval、MBPP，正在 GPU 1 运行 MATH-500。失败重试和续跑状态以该目录 `report.md` 为准。
+   - 旧 block-size shadow `block_size_shadow_20260828_153452` 最终只有 6 个非 AIME24 数据集完成，MMLU/IFEval/LiveCodeBench 失败，不能当作九集完整结果。
+
+3. 新增 margin-risk method
+   - 原单候选 `margin_risk_overlap_linearspec_20260831_004647` 和原多候选 `margin_risk_multi_overlap_20260831_004612` 已完成非 AIME24 九数据集；另有修复口径后的多候选结果 `margin_risk_multi_overlap_20260901_150214`。
+   - P1/P2 + always-new 方法：代码 `method/margin_risk_two_plus_new_overlap_linearspec/`，手册 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_two_plus_new_overlap_linearspec_zh.md`；0.5 与 0.45 阈值九集结果分别为 `margin_risk_two_plus_new_overlap_20260831_223138`、`margin_risk_two_plus_new_overlap_20260902_113656`。
+   - 条件式 rank 方法：代码 `method/margin_risk_conditional_rank_overlap_linearspec/`，手册 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_conditional_rank_overlap_linearspec_zh.md`；单样本 smoke 为 `margin_risk_conditional_rank_overlap_20260903_152623`，正式结果 `margin_risk_conditional_rank_overlap_20260903_154307` 当前完成 7/9，正在 GPU 2 运行 LiveCodeBench，之后仍有 MMLU。
+
+4. 实时版本与待办
+   - 本次审计 HEAD 为 `9a6c93e0a7962397b88c0951995aebd4305e4eae`；提交后工作树干净，本次只追加两份 memory 文档。
+   - 上述 S16 验证和条件式 rank 正式实验仍有活跃进程及隐藏工作目录，不得停止、移动或删除。
+   - 待两项任务自然结束后，先核验最终 Settings、metrics/error、覆盖率和报告完整性，再分析冻结动态 block 策略及条件式 rank 方法结果。
