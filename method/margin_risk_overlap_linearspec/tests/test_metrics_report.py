@@ -99,7 +99,11 @@ class MetricsAndReportTests(unittest.TestCase):
         self.assertEqual(merged["failed_request_count"], 1)
         self.assertEqual(merged["oom_skipped_request_count"], 1)
         self.assertEqual(merged["successful_request_rate"], 0.5)
-        self.assertEqual(merged["tokens_per_forward_pass"], 4)
+        self.assertEqual(merged["tokens_per_forward_pass"], 8)
+        self.assertEqual(merged["decode_forward_passes"], 1)
+        self.assertEqual(merged["prefill_forward_passes"], 1)
+        self.assertEqual(merged["total_forward_passes"], 2)
+        self.assertEqual(merged["end_to_end_tokens_per_forward_pass"], 4)
 
     def test_merge_can_create_efficiency_only_metrics_when_scorer_failed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

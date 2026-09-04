@@ -1,0 +1,422 @@
+{
+  "accepted_confidence_abs_diff": {
+    "count": 156,
+    "max": 0.10384571552276611,
+    "mean": 0.00510964198754384
+  },
+  "core_exact_match": false,
+  "core_mismatch_count": 7,
+  "core_mismatch_field_counts": {
+    "accepted_draft_tokens": 6,
+    "accepted_positions": 6,
+    "emitted_tokens": 7,
+    "eos_hit": 1,
+    "has_rejection": 1,
+    "matched_draft_tokens": 5,
+    "rejected_correct_token_id": 5,
+    "rejected_correct_token_rank": 5,
+    "rejected_draft_token_id": 5,
+    "rejected_position": 5
+  },
+  "core_mismatches": [
+    {
+      "differences": {
+        "emitted_tokens": {
+          "left": 16,
+          "right": 15
+        }
+      },
+      "round_index": 14,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 4,
+          "right": 12
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ]
+        },
+        "emitted_tokens": {
+          "left": 5,
+          "right": 13
+        },
+        "matched_draft_tokens": {
+          "left": 4,
+          "right": 12
+        },
+        "rejected_correct_token_id": {
+          "left": 16166,
+          "right": 2295
+        },
+        "rejected_correct_token_rank": {
+          "left": 1,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 8032,
+          "right": 3788
+        },
+        "rejected_position": {
+          "left": 5,
+          "right": 13
+        }
+      },
+      "round_index": 9,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 7,
+          "right": 2
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "right": [
+            1,
+            2
+          ]
+        },
+        "emitted_tokens": {
+          "left": 8,
+          "right": 3
+        },
+        "matched_draft_tokens": {
+          "left": 7,
+          "right": 2
+        },
+        "rejected_correct_token_id": {
+          "left": 2295,
+          "right": 13458
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 3
+        },
+        "rejected_draft_token_id": {
+          "left": 3788,
+          "right": 114617
+        },
+        "rejected_position": {
+          "left": 8,
+          "right": 3
+        }
+      },
+      "round_index": 10,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 2,
+          "right": 3
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2
+          ],
+          "right": [
+            1,
+            2,
+            3
+          ]
+        },
+        "emitted_tokens": {
+          "left": 3,
+          "right": 4
+        },
+        "matched_draft_tokens": {
+          "left": 2,
+          "right": 3
+        },
+        "rejected_correct_token_id": {
+          "left": 13458,
+          "right": 98477
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 3
+        },
+        "rejected_draft_token_id": {
+          "left": 114617,
+          "right": 19511
+        },
+        "rejected_position": {
+          "left": 3,
+          "right": 4
+        }
+      },
+      "round_index": 11,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 3,
+          "right": 12
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ]
+        },
+        "emitted_tokens": {
+          "left": 4,
+          "right": 13
+        },
+        "matched_draft_tokens": {
+          "left": 3,
+          "right": 12
+        },
+        "rejected_correct_token_id": {
+          "left": 98477,
+          "right": 1603
+        },
+        "rejected_correct_token_rank": {
+          "left": 3,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 19511,
+          "right": 1010
+        },
+        "rejected_position": {
+          "left": 4,
+          "right": 13
+        }
+      },
+      "round_index": 12,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 12,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 13,
+          "right": 16
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 12,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 1603,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 1010,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 13,
+          "right": null
+        }
+      },
+      "round_index": 13,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 15,
+          "right": 1
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "right": [
+            1
+          ]
+        },
+        "emitted_tokens": {
+          "left": 16,
+          "right": 1
+        },
+        "eos_hit": {
+          "left": false,
+          "right": true
+        }
+      },
+      "round_index": 14,
+      "sample_index": 1
+    }
+  ],
+  "first_core_mismatch": {
+    "differences": {
+      "emitted_tokens": {
+        "left": 16,
+        "right": 15
+      }
+    },
+    "round_index": 14,
+    "sample_index": 0
+  },
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_graph_predraft_hook/linearspec_confidence_20260831_175855/traces/raw_trace_gsm8k.jsonl",
+  "left_all_request_round_counts": [
+    4,
+    1,
+    1,
+    15,
+    16
+  ],
+  "left_compared_aggregate": {
+    "accepted_confidence": {
+      "count": 215,
+      "max": 1.0,
+      "mean": 0.9475352493829505
+    },
+    "accepted_draft_tokens": 215,
+    "emitted_tokens_in_trace": 246,
+    "matched_draft_tokens": 229,
+    "rejected_confidence": {
+      "count": 23,
+      "max": 0.9448326826095581,
+      "mean": 0.6311294708562933
+    },
+    "requests": 2,
+    "rounds": 31
+  },
+  "left_compared_request_round_counts": [
+    15,
+    16
+  ],
+  "paired_rounds": 30,
+  "rejected_confidence_abs_diff": {
+    "count": 18,
+    "max": 0.05483353137969971,
+    "mean": 0.012890554136700101
+  },
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/pytorch_lora/linearspec_confidence_20260831_175158/traces/raw_trace_gsm8k.jsonl",
+  "right_all_request_round_counts": [
+    15,
+    15
+  ],
+  "right_compared_aggregate": {
+    "accepted_confidence": {
+      "count": 216,
+      "max": 1.0,
+      "mean": 0.9435755483530186
+    },
+    "accepted_draft_tokens": 216,
+    "emitted_tokens_in_trace": 244,
+    "matched_draft_tokens": 230,
+    "rejected_confidence": {
+      "count": 22,
+      "max": 0.9380862712860107,
+      "mean": 0.6428761753168973
+    },
+    "requests": 2,
+    "rounds": 30
+  },
+  "right_compared_request_round_counts": [
+    15,
+    15
+  ],
+  "same_request_count": true,
+  "same_round_counts": false
+}

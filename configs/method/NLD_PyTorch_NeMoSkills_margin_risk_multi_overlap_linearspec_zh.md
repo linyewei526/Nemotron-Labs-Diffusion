@@ -189,7 +189,7 @@ bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.
 MMLU 明确放在最后；该命令不运行 AIME24。报告在每个数据集完成后增量刷新，最终宏平均为九数据集等权。
 
 ```bash
-bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 3 --gpu-memory-reserve-gb 0 --efficiency-only --output-path /data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results
+bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 1 --gpu-memory-reserve-gb 0 --require-accuracy --output-path /data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results
 ```
 加 --require-accuracy：才恢复原来 pipeline 的严格行为——请求 OOM 或评分失败都会让数据集失败，并要求 accuracy/scorer 正常完成。
 
@@ -338,7 +338,7 @@ python method/margin_risk_multi_overlap_linearspec/report.py --result-dir /data/
 
 报告不展示任何 accuracy 列。评分即使存在也不纳入报告；scorer 没完成时，metrics 由成功 request stats 创建。只有 `OK` request 参与效率和状态聚合，`Fail/OOM` 用来解释覆盖率，不能把 `Cov<100%` 的结果当成全样本结果。
 
-TPF 的一个 fused forward 仍只计一次物理 encoder 调用，因此不能独立代表算力效率。必须同时查看 `FwdTok均`、`Rows均`、`Q均` 和 `Pad率`；这些指标能反映 dense token 工作量，但仍不是包含 KV 长度影响的完整 FLOPs。
+当前默认 TPF 排除 prompt prefill，以 `completion_tokens/decode_forward_passes` 计算并与 SGLang 对齐；`total_forward_passes/physical_nfe` 继续保留含 prefill 的总调用用于审计。TPF 的一个 fused forward 仍只计一次物理 encoder 调用，因此不能独立代表算力效率。必须同时查看 `FwdTok均`、`Rows均`、`Q均` 和 `Pad率`；这些指标能反映 dense token 工作量，但仍不是包含 KV 长度影响的完整 FLOPs。
 
 ## 7. 自检与真实模型 smoke
 

@@ -274,8 +274,8 @@ AIME24 单项结果保留在所有表格中，但因已知精度问题不进入�
 
 |短名/字段|含义与例子|
 |:---:|:---:|
-|`TPF`|`completion_tokens / physical_nfe`；例如返回 100 token、20 次 encoder 调用，则 TPF=5|
-|`NFE`|物理 encoder 调用次数；双行 fused batch 仍计一次，但额外工作由 Rows/QTok 暴露|
+|`TPF`|`completion_tokens / decode_nfe`；排除 prompt prefill，例如返回 100 token、20 次总调用中含 1 次 prefill，则 TPF=100/19|
+|`NFE`|默认表中的 NFE 是 decode encoder 调用次数；`total_forward_passes/physical_nfe` 仍保留含 prefill 的总调用，双行 fused batch 仍计一次|
 |`Rows`|所有 encoder forward 实际处理的 batch row 总数；普通 forward 加 1，fused forward 加 2|
 |`QTok`|所有 forward 的 `batch_size × query_length` 总和|
 |`Saved` / `redraft_saved_draft_forwards`|上一轮完整 R 被下一轮实际消费，因而省去 normal draft forward 的次数|

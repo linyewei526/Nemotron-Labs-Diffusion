@@ -1,0 +1,1189 @@
+{
+  "accepted_confidence_abs_diff": {
+    "count": 16,
+    "max": 0.4197680950164795,
+    "mean": 0.0552445612847805
+  },
+  "core_exact_match": false,
+  "core_mismatch_count": 28,
+  "core_mismatch_field_counts": {
+    "accepted_draft_tokens": 27,
+    "accepted_positions": 27,
+    "emitted_tokens": 27,
+    "eos_hit": 2,
+    "has_rejection": 7,
+    "matched_draft_tokens": 27,
+    "rejected_correct_token_id": 27,
+    "rejected_correct_token_rank": 22,
+    "rejected_draft_token_id": 28,
+    "rejected_position": 27
+  },
+  "core_mismatches": [
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 13,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 14,
+          "right": 16
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 13,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 1032,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 1051,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 14,
+          "right": null
+        }
+      },
+      "round_index": 1,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 5,
+          "right": 2
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "right": [
+            1,
+            2
+          ]
+        },
+        "emitted_tokens": {
+          "left": 6,
+          "right": 3
+        },
+        "matched_draft_tokens": {
+          "left": 5,
+          "right": 2
+        },
+        "rejected_correct_token_id": {
+          "left": 11828,
+          "right": 3387
+        },
+        "rejected_draft_token_id": {
+          "left": 6284,
+          "right": 1338
+        },
+        "rejected_position": {
+          "left": 6,
+          "right": 3
+        }
+      },
+      "round_index": 2,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 4,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 5,
+          "right": 16
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 4,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 100730,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 3,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 1052,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 5,
+          "right": null
+        }
+      },
+      "round_index": 3,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 6,
+          "right": 2
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "right": [
+            1,
+            2
+          ]
+        },
+        "emitted_tokens": {
+          "left": 7,
+          "right": 3
+        },
+        "matched_draft_tokens": {
+          "left": 6,
+          "right": 2
+        },
+        "rejected_correct_token_id": {
+          "left": 1454,
+          "right": 3788
+        },
+        "rejected_correct_token_rank": {
+          "left": 5,
+          "right": 3
+        },
+        "rejected_draft_token_id": {
+          "left": 3950,
+          "right": 1044
+        },
+        "rejected_position": {
+          "left": 7,
+          "right": 3
+        }
+      },
+      "round_index": 4,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 3,
+          "right": 2
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3
+          ],
+          "right": [
+            1,
+            2
+          ]
+        },
+        "emitted_tokens": {
+          "left": 4,
+          "right": 3
+        },
+        "matched_draft_tokens": {
+          "left": 3,
+          "right": 2
+        },
+        "rejected_correct_token_id": {
+          "left": 1338,
+          "right": 1651
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 3
+        },
+        "rejected_draft_token_id": {
+          "left": 1319,
+          "right": 2744
+        },
+        "rejected_position": {
+          "left": 4,
+          "right": 3
+        }
+      },
+      "round_index": 5,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 1,
+          "right": 5
+        },
+        "accepted_positions": {
+          "left": [
+            1
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        "emitted_tokens": {
+          "left": 2,
+          "right": 6
+        },
+        "matched_draft_tokens": {
+          "left": 1,
+          "right": 5
+        },
+        "rejected_correct_token_id": {
+          "left": 3788,
+          "right": 10774
+        },
+        "rejected_correct_token_rank": {
+          "left": 4,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 1044,
+          "right": 1101
+        },
+        "rejected_position": {
+          "left": 2,
+          "right": 6
+        }
+      },
+      "round_index": 6,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 2,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 3,
+          "right": 16
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 2,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 1651,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 4,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 2744,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 3,
+          "right": null
+        }
+      },
+      "round_index": 7,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 4,
+          "right": 1
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "right": [
+            1
+          ]
+        },
+        "emitted_tokens": {
+          "left": 5,
+          "right": 2
+        },
+        "matched_draft_tokens": {
+          "left": 4,
+          "right": 1
+        },
+        "rejected_correct_token_id": {
+          "left": 1319,
+          "right": 1376
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 1
+        },
+        "rejected_draft_token_id": {
+          "left": 1867,
+          "right": 1317
+        },
+        "rejected_position": {
+          "left": 5,
+          "right": 2
+        }
+      },
+      "round_index": 8,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 7,
+          "right": 3
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "right": [
+            1,
+            2,
+            3
+          ]
+        },
+        "emitted_tokens": {
+          "left": 8,
+          "right": 4
+        },
+        "matched_draft_tokens": {
+          "left": 7,
+          "right": 3
+        },
+        "rejected_correct_token_id": {
+          "left": 5470,
+          "right": 1462
+        },
+        "rejected_correct_token_rank": {
+          "left": 1,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 2975,
+          "right": 1319
+        },
+        "rejected_position": {
+          "left": 8,
+          "right": 4
+        }
+      },
+      "round_index": 9,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 8,
+          "right": 10
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ]
+        },
+        "emitted_tokens": {
+          "left": 9,
+          "right": 11
+        },
+        "matched_draft_tokens": {
+          "left": 8,
+          "right": 10
+        },
+        "rejected_correct_token_id": {
+          "left": 104008,
+          "right": 32340
+        },
+        "rejected_correct_token_rank": {
+          "left": 3,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 1069,
+          "right": 11829
+        },
+        "rejected_position": {
+          "left": 9,
+          "right": 11
+        }
+      },
+      "round_index": 10,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 1,
+          "right": 11
+        },
+        "accepted_positions": {
+          "left": [
+            1
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ]
+        },
+        "emitted_tokens": {
+          "left": 2,
+          "right": 12
+        },
+        "matched_draft_tokens": {
+          "left": 1,
+          "right": 11
+        },
+        "rejected_correct_token_id": {
+          "left": 1376,
+          "right": 75980
+        },
+        "rejected_correct_token_rank": {
+          "left": 1,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 1317,
+          "right": 19121
+        },
+        "rejected_position": {
+          "left": 2,
+          "right": 12
+        }
+      },
+      "round_index": 11,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 9,
+          "right": 5
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        "emitted_tokens": {
+          "left": 10,
+          "right": 6
+        },
+        "matched_draft_tokens": {
+          "left": 9,
+          "right": 5
+        },
+        "rejected_correct_token_id": {
+          "left": 29791,
+          "right": 1376
+        },
+        "rejected_draft_token_id": {
+          "left": 1338,
+          "right": 1651
+        },
+        "rejected_position": {
+          "left": 10,
+          "right": 6
+        }
+      },
+      "round_index": 12,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 4,
+          "right": 14
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ]
+        },
+        "emitted_tokens": {
+          "left": 5,
+          "right": 15
+        },
+        "matched_draft_tokens": {
+          "left": 4,
+          "right": 14
+        },
+        "rejected_correct_token_id": {
+          "left": 32340,
+          "right": 4873
+        },
+        "rejected_correct_token_rank": {
+          "left": 5,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 11829,
+          "right": 1044
+        },
+        "rejected_position": {
+          "left": 5,
+          "right": 15
+        }
+      },
+      "round_index": 13,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 6,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 7,
+          "right": 16
+        },
+        "eos_hit": {
+          "left": false,
+          "right": true
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 6,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 1394,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 1659,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 7,
+          "right": null
+        }
+      },
+      "round_index": 14,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "rejected_draft_token_id": {
+          "left": 1032,
+          "right": 1058
+        }
+      },
+      "round_index": 0,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 3,
+          "right": 0
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3
+          ],
+          "right": []
+        },
+        "emitted_tokens": {
+          "left": 4,
+          "right": 1
+        },
+        "matched_draft_tokens": {
+          "left": 3,
+          "right": 0
+        },
+        "rejected_correct_token_id": {
+          "left": 57302,
+          "right": 1062
+        },
+        "rejected_draft_token_id": {
+          "left": 9368,
+          "right": 1045
+        },
+        "rejected_position": {
+          "left": 4,
+          "right": 1
+        }
+      },
+      "round_index": 1,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 7,
+          "right": 15
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "emitted_tokens": {
+          "left": 8,
+          "right": 16
+        },
+        "has_rejection": {
+          "left": true,
+          "right": false
+        },
+        "matched_draft_tokens": {
+          "left": 7,
+          "right": 15
+        },
+        "rejected_correct_token_id": {
+          "left": 16166,
+          "right": null
+        },
+        "rejected_correct_token_rank": {
+          "left": 1,
+          "right": null
+        },
+        "rejected_draft_token_id": {
+          "left": 12598,
+          "right": null
+        },
+        "rejected_position": {
+          "left": 8,
+          "right": null
+        }
+      },
+      "round_index": 3,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 2,
+          "right": 6
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        "emitted_tokens": {
+          "left": 3,
+          "right": 7
+        },
+        "matched_draft_tokens": {
+          "left": 2,
+          "right": 6
+        },
+        "rejected_correct_token_id": {
+          "left": 1032,
+          "right": 15330
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 6
+        },
+        "rejected_draft_token_id": {
+          "left": 26630,
+          "right": 1429
+        },
+        "rejected_position": {
+          "left": 3,
+          "right": 7
+        }
+      },
+      "round_index": 4,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 8,
+          "right": 11
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "right": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ]
+        },
+        "emitted_tokens": {
+          "left": 9,
+          "right": 12
+        },
+        "matched_draft_tokens": {
+          "left": 8,
+          "right": 11
+        },
+        "rejected_correct_token_id": {
+          "left": 15330,
+          "right": 67596
+        },
+        "rejected_correct_token_rank": {
+          "left": 12,
+          "right": 2
+        },
+        "rejected_draft_token_id": {
+          "left": 1045,
+          "right": 61867
+        },
+        "rejected_position": {
+          "left": 9,
+          "right": 12
+        }
+      },
+      "round_index": 5,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "accepted_draft_tokens": {
+          "left": 5,
+          "right": 2
+        },
+        "accepted_positions": {
+          "left": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "right": [
+            1,
+            2
+          ]
+        },
+        "emitted_tokens": {
+          "left": 6,
+          "right": 3
+        },
+        "matched_draft_tokens": {
+          "left": 5,
+          "right": 2
+        },
+        "rejected_correct_token_id": {
+          "left": 2591,
+          "right": 1438
+        },
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 3
+        },
+        "rejected_draft_token_id": {
+          "left": 1010,
+          "right": 7496
+        },
+        "rejected_position": {
+          "left": 6,
+          "right": 3
+        }
+      },
+      "round_index": 6,
+      "sample_index": 1
+    }
+  ],
+  "first_core_mismatch": {
+    "differences": {
+      "accepted_draft_tokens": {
+        "left": 13,
+        "right": 15
+      },
+      "accepted_positions": {
+        "left": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13
+        ],
+        "right": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ]
+      },
+      "emitted_tokens": {
+        "left": 14,
+        "right": 16
+      },
+      "has_rejection": {
+        "left": true,
+        "right": false
+      },
+      "matched_draft_tokens": {
+        "left": 13,
+        "right": 15
+      },
+      "rejected_correct_token_id": {
+        "left": 1032,
+        "right": null
+      },
+      "rejected_correct_token_rank": {
+        "left": 2,
+        "right": null
+      },
+      "rejected_draft_token_id": {
+        "left": 1051,
+        "right": null
+      },
+      "rejected_position": {
+        "left": 14,
+        "right": null
+      }
+    },
+    "round_index": 1,
+    "sample_index": 0
+  },
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_graph/linearspec_confidence_20260831_174548/traces/raw_trace_gsm8k.jsonl",
+  "left_all_request_round_counts": [
+    5,
+    1,
+    1,
+    20,
+    17
+  ],
+  "left_compared_aggregate": {
+    "accepted_confidence": {
+      "count": 209,
+      "max": 0.9999923706054688,
+      "mean": 0.7299000471117394
+    },
+    "accepted_draft_tokens": 209,
+    "emitted_tokens_in_trace": 246,
+    "matched_draft_tokens": 215,
+    "rejected_confidence": {
+      "count": 33,
+      "max": 0.9573732614517212,
+      "mean": 0.4060156029282194
+    },
+    "requests": 2,
+    "rounds": 37
+  },
+  "left_compared_request_round_counts": [
+    20,
+    17
+  ],
+  "paired_rounds": 30,
+  "rejected_confidence_abs_diff": {
+    "count": 1,
+    "max": 0.27247628569602966,
+    "mean": 0.27247628569602966
+  },
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_eager/linearspec_confidence_20260831_174916/traces/raw_trace_gsm8k.jsonl",
+  "right_all_request_round_counts": [
+    4,
+    1,
+    1,
+    15,
+    15
+  ],
+  "right_compared_aggregate": {
+    "accepted_confidence": {
+      "count": 216,
+      "max": 1.0,
+      "mean": 0.945711613667232
+    },
+    "accepted_draft_tokens": 216,
+    "emitted_tokens_in_trace": 246,
+    "matched_draft_tokens": 230,
+    "rejected_confidence": {
+      "count": 22,
+      "max": 0.9380862712860107,
+      "mean": 0.6312062293291092
+    },
+    "requests": 2,
+    "rounds": 30
+  },
+  "right_compared_request_round_counts": [
+    15,
+    15
+  ],
+  "same_request_count": true,
+  "same_round_counts": false
+}

@@ -1,0 +1,29 @@
+{
+  "comparable_numeric_leaf_pairs": 46,
+  "exact_normalized_match": false,
+  "exact_prefix_rows": 0,
+  "first_mismatch": {
+    "differing_keys": [
+      "rejected_draft_confidence",
+      "rejected_draft_token_id"
+    ],
+    "left": {
+      "rejected_draft_confidence": 0.24981482326984406,
+      "rejected_draft_token_id": 1044
+    },
+    "left_source_line": 1,
+    "right": {
+      "rejected_draft_confidence": 0.4720117151737213,
+      "rejected_draft_token_id": 1046
+    },
+    "right_source_line": 1,
+    "row_index": 0
+  },
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_graph/linearspec_confidence_20260831_174548/traces/raw_trace_gsm8k.jsonl",
+  "left_rows": 44,
+  "max_abs_numeric_diff_for_matching_paths": 7802.0,
+  "numeric_leaf_pairs": 1031,
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_eager/linearspec_confidence_20260831_174916/traces/raw_trace_gsm8k.jsonl",
+  "right_rows": 36,
+  "same_row_count": false
+}

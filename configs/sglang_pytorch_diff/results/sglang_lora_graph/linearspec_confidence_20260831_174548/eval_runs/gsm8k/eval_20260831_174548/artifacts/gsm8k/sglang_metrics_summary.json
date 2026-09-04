@@ -1,0 +1,58 @@
+{
+  "average_forward_passes_per_sample": 37.0,
+  "avg_completion_tokens": 123.0,
+  "benchmark": "gsm8k",
+  "decode": {
+    "block_gen_positions": 592.0,
+    "decode_blocks": 37,
+    "decode_forward_passes": 74.0,
+    "decode_tokens": 246.0,
+    "mean_acceptance_rate": 0.415541,
+    "mean_forward_passes_per_block": 2.0,
+    "mean_tokens_per_block": 6.6486,
+    "tokens_per_forward_pass": 3.3243,
+    "weighted_acceptance_rate": 0.415541
+  },
+  "serving": {
+    "benchmark_wall_time_s": 34.17308,
+    "completion_tokens": 246.0,
+    "failed_request_count": 0,
+    "latency_s": {
+      "mean": 3.887544,
+      "p50": 3.887544,
+      "p90": 4.110987,
+      "p95": 4.138918,
+      "p99": 4.161262
+    },
+    "per_request_output_tokens_per_s": {
+      "mean": 31.655066,
+      "p50": 31.655066,
+      "p90": 31.828214,
+      "p95": 31.849857,
+      "p99": 31.867172
+    },
+    "prompt_tokens": 173.0,
+    "request_count": 2,
+    "request_window_output_tokens_per_s": 31.4734,
+    "request_window_requests_per_s": 0.2559,
+    "request_window_time_s": 7.816123,
+    "sum_request_latency_s": 7.775087,
+    "tpot_s": {
+      "mean": 0.029853,
+      "p50": 0.029853,
+      "p90": 0.030071,
+      "p95": 0.030099,
+      "p99": 0.030121
+    },
+    "ttft_s": {
+      "mean": 0.247669,
+      "p50": 0.247669,
+      "p90": 0.306664,
+      "p95": 0.314039,
+      "p99": 0.319938
+    },
+    "wall_output_tokens_per_s": 7.1986,
+    "wall_requests_per_s": 0.0585,
+    "wall_time_s": 34.17308
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "comparable_numeric_leaf_pairs": 0,
+  "exact_normalized_match": false,
+  "exact_prefix_rows": 0,
+  "first_mismatch": {
+    "differing_keys": [
+      "accepted_draft_confidence_mean",
+      "accepted_draft_confidences",
+      "accepted_draft_token_ids",
+      "accepted_draft_tokens",
+      "accepted_generation_positions",
+      "accepted_positions",
+      "confidence_drop_abs",
+      "confidence_drop_pct",
+      "draft_forward_passes",
+      "emitted_tokens",
+      "generation_offset",
+      "mask_selected_positions",
+      "matched_draft_tokens",
+      "nfe_after_round",
+      "rejected_correct_token_id",
+      "rejected_correct_token_rank",
+      "rejected_draft_confidence",
+      "rejected_draft_token_id",
+      "rejected_generation_position",
+      "rejected_position",
+      "round_index",
+      "schema_version",
+      "temperature",
+      "threshold"
+    ],
+    "left": {
+      "accepted_draft_confidence_mean": null,
+      "accepted_draft_confidences": [],
+      "accepted_draft_token_ids": null,
+      "accepted_draft_tokens": 0,
+      "accepted_generation_positions": null,
+      "accepted_positions": [],
+      "confidence_drop_abs": null,
+      "confidence_drop_pct": null,
+      "draft_forward_passes": null,
+      "emitted_tokens": 1,
+      "generation_offset": null,
+      "mask_selected_positions": null,
+      "matched_draft_tokens": 0,
+      "nfe_after_round": null,
+      "rejected_correct_token_id": 2613,
+      "rejected_correct_token_rank": 3,
+      "rejected_draft_confidence": 0.4720117151737213,
+      "rejected_draft_token_id": 1046,
+      "rejected_generation_position": null,
+      "rejected_position": 1,
+      "round_index": null,
+      "schema_version": 1,
+      "temperature": null,
+      "threshold": null
+    },
+    "left_source_line": 1,
+    "right": {
+      "accepted_draft_confidence_mean": 0.9990658760070801,
+      "accepted_draft_confidences": [
+        0.9990658760070801
+      ],
+      "accepted_draft_token_ids": [
+        1304
+      ],
+      "accepted_draft_tokens": 1,
+      "accepted_generation_positions": [
+        1
+      ],
+      "accepted_positions": [
+        1
+      ],
+      "confidence_drop_abs": 0.3057675361633301,
+      "confidence_drop_pct": 0.30605342801355295,
+      "draft_forward_passes": 1,
+      "emitted_tokens": 2,
+      "generation_offset": 1,
+      "mask_selected_positions": [],
+      "matched_draft_tokens": 1,
+      "nfe_after_round": 3,
+      "rejected_correct_token_id": 1681,
+      "rejected_correct_token_rank": 2,
+      "rejected_draft_confidence": 0.69329833984375,
+      "rejected_draft_token_id": 2190,
+      "rejected_generation_position": 2,
+      "rejected_position": 2,
+      "round_index": 0,
+      "schema_version": 2,
+      "temperature": 0.0,
+      "threshold": 0.0
+    },
+    "right_source_line": 1,
+    "row_index": 0
+  },
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_eager/linearspec_confidence_20260831_174916/traces/raw_trace_gsm8k.jsonl",
+  "left_rows": 36,
+  "max_abs_numeric_diff_for_matching_paths": 0.0,
+  "numeric_leaf_pairs": 1031,
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/pytorch_lora/linearspec_confidence_20260831_175158/traces/raw_trace_gsm8k.jsonl",
+  "right_rows": 30,
+  "same_row_count": false
+}

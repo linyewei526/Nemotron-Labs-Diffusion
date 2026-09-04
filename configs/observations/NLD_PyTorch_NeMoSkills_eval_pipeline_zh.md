@@ -314,8 +314,11 @@ model_output_tokens_per_s / tps
 |---|---|
 | `completion_tokens` | 最终返回给 NeMo 的 token 数 |
 | `raw_generated_tokens` | 原生方法实际产生、尚未按 API 上限/stop 截断的 token 数 |
-| `forward_passes` | remote code 返回的 NFE 之和 |
-| `tokens_per_forward_pass` | completion tokens / NFE |
+| `forward_passes` / `decode_forward_passes` | decode 阶段 NFE 之和；LinearSpec 的 prompt prefill 已排除，与 SGLang 口径一致 |
+| `prefill_forward_passes` | 被排除的 LinearSpec prompt prefill 次数 |
+| `total_forward_passes` | remote code 返回的总 NFE；保留用于端到端审计 |
+| `tokens_per_forward_pass` | completion tokens / decode NFE，即默认 TPF |
+| `end_to_end_tokens_per_forward_pass` | completion tokens / total NFE，保留原含 prefill 口径 |
 | `model_generation_time_s` | CUDA synchronize 包围的原生生成函数时间之和 |
 | `model_output_tokens_per_s` | completion tokens / model generation time；主要 TPS |
 | `benchmark_wall_output_tokens_per_s` | completion tokens / 完整 NeMo benchmark 命令时间 |
@@ -346,7 +349,7 @@ bash observations/eval_pytorch_nemo.sh --mode linearspec_lora --benchmarks gsm8k
 bash observations/eval_sglang.sh --mode linearspec_lora --benchmarks gsm8k:1 --gpu-devices 3 --gpu-memory-reserve-gb 30 --tokens 8192 --block-size 16 --output-path /data/home/wly/dLLM/NLD_results/observations/sglang_nemo_eval_results/sglang_compare
 ```
 
-准确率可以直接对照；TPF 要注意两套 remote/engine 是否统计 post-block KV update；TPS 则代表各自真实后端时间，正是本实验希望比较的内容。
+准确率可以直接对照；当前 PyTorch 与 SGLang 的 LinearSpec TPF 都排除 prompt prefill，但仍要确认两套 remote/engine 是否同样统计 post-block KV update；TPS 则代表各自真实后端时间，正是本实验希望比较的内容。
 
 ## 11. 并行运行与隔离保证
 

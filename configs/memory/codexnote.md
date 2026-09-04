@@ -218,3 +218,56 @@ rg -n '/data/home/wly/dLLM|/data1/linyewei/models/Nemotron-Labs-Diffusion-8B|/da
 5. 已说明 Strict Direct 的后缀条件化瓶颈、报告增量更新待办和下一步独立修改路径。
 
 达到这些判据后再继续开发，不要因为旧绝对路径失效就重做已完成研究，也不要在未经确认时批量替换历史 provenance。
+
+---
+
+时间戳：2026-08-31 10:37:20 +0800（CST）
+
+# 2026-08-31 新增实验对齐指南
+
+本节优先于前文关于“三套 method 均结束”和旧运行快照的描述。新会话先读取 `configs/memory/quicknote.md` 最后一条记录，再按下面入口恢复新增进展；不要删除旧快照，也不要从零重做已有搜索。
+
+## 14. 新增 observation 阅读顺序
+
+1. Block-size shadow：先读 `configs/observations/NLD_PyTorch_LinearSpec_block_size_shadow_zh.md`，再按需检查 `observations/pytorch_linearspec_block_size_shadow/` 和 `/data/home/wly/dLLM/NLD_results/observations/pytorch_linearspec_block_size_shadow_results/`。
+2. 自适应首错位置搜索：读 `configs/observations/NLD_PyTorch_LinearSpec_adaptive_failure_locator_search_zh.md`，代码位于 `observations/adaptive_failure_locator_search/`，完整九数据集结果位于 `/data/home/wly/dLLM/NLD_results/observations/adaptive_failure_locator_search_results/adaptive_failure_locator_20260828_203527/`。
+3. 历史自适应 margin-risk：读 `configs/observations/NLD_PyTorch_LinearSpec_adaptive_margin_history_search_zh.md`，代码位于 `observations/adaptive_margin_history_search/`，九数据集全数据等权搜索结果位于 `/data/home/wly/dLLM/NLD_results/observations/adaptive_margin_history_search_results/adaptive_margin_history_20260830_153105/`。
+
+这三项分别回答 block 长度与同轮接收、免训练首错定位、历史信息能否自适应 margin-risk。需要具体指标或结论时直接读取对应 `report.md`、`summaries/`、`analysis/` 和 trace，不要根据本文复述推断数值。
+
+## 15. 新增 method 阅读顺序
+
+在前文三套 confidence/drop 方法之后，继续按以下顺序阅读：
+
+1. `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_overlap_linearspec_zh.md`
+2. `method/margin_risk_overlap_linearspec/`
+3. `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md`
+4. `method/margin_risk_multi_overlap_linearspec/`
+
+单候选版以固定 margin-risk 取代原 drop 阈值；多候选版扩展为最多三个候选并加入整块通过时的 continuation。阅读代码仍须跟踪入口 Shell、pipeline、server、generation、hybrid attention、分段 LoRA、metrics/report 和 tests，且不得反向修改旧 confidence 方法。
+
+两套新入口默认是 efficiency-only，而不是旧的严格 accuracy pipeline：单请求 OOM 记录后跳过，效率只聚合成功请求，报告必须结合 Att/OK/Fail/OOM/Cov；仅在明确传入 `--require-accuracy` 时恢复严格 scorer/OOM 失败行为。省略 `--efficiency-only` 仍是默认效率模式。该口径不会主动缩小数据集；只有 `--max-samples` 或 `--quick-test` 才改变请求范围。
+
+## 16. 新结果与实时状态核验
+
+本文生成时：
+
+- Block-size shadow 的 `block_size_shadow_20260828_153452` 正在 GPU 3 跑 MMLU，已有 6 个非 AIME24 数据集结果；
+- 单候选 `margin_risk_overlap_linearspec_20260831_004647` 正在 GPU 1 跑 IFEval，报告为 6/9；
+- 多候选 `margin_risk_multi_overlap_20260831_004612` 正在 GPU 3 跑 GPQA，报告为 5/9；
+- `margin_risk_overlap_linearspec_20260830_190823` 是不完整旧尝试，不能作为正式九数据集结论；
+- 两个自适应定位 observation 已完成，优先复用其现有结果。
+
+以上只是时间戳快照。新会话必须重新检查进程树、GPU、隐藏工作目录、Settings、metrics/error、当前日志和 report 完成数。活跃任务不得停止或清理；`server_ready` 也不能被当作最终完成状态。
+
+开始本次交接更新前 Git HEAD 为 `3359200accd080e3172b36c2aac0e2eedf370f5c`，工作树仅显示用户对 `configs/NLD_prompt.md` 的修改；本次另外只修改 `quicknote.md` 和 `codexnote.md`。后续若状态不同，以实时 Git 和文件内容为准并保留用户改动。
+
+## 17. 新增进度的对齐完成判据
+
+新会话继续研究前应能简要确认：
+
+1. 已区分三项新增 observation 的问题、代码和结果入口；
+2. 已理解固定 margin-risk 单候选与多候选方法相对旧 confidence/drop 方法的演进关系；
+3. 已理解 efficiency-only 默认值、全数据集范围与 OOM/Cov 统计边界；
+4. 已实时核验三轮正式任务是否完成，并排除不完整旧结果；
+5. 后续修改会继续使用独立 observation/method 目录，不覆盖既有复现、搜索或正在运行的实验。

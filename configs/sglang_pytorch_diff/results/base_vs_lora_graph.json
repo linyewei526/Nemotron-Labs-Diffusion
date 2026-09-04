@@ -1,0 +1,13 @@
+{
+  "comparable_numeric_leaf_pairs": 1182,
+  "exact_normalized_match": true,
+  "exact_prefix_rows": 44,
+  "first_mismatch": null,
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_base_graph/linearspec_confidence_20260831_174408/traces/raw_trace_gsm8k.jsonl",
+  "left_rows": 44,
+  "max_abs_numeric_diff_for_matching_paths": 0.0,
+  "numeric_leaf_pairs": 1182,
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_graph/linearspec_confidence_20260831_174548/traces/raw_trace_gsm8k.jsonl",
+  "right_rows": 44,
+  "same_row_count": true
+}

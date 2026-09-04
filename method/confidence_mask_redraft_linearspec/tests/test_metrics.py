@@ -63,7 +63,11 @@ class MetricsTests(unittest.TestCase):
         ]
         result = summarize(rows, 3.0)
         redraft = result["mask_redraft"]
-        self.assertEqual(result["tokens_per_forward_pass"], 5.0)
+        self.assertEqual(result["tokens_per_forward_pass"], 7.5)
+        self.assertEqual(result["decode_forward_passes"], 4.0)
+        self.assertEqual(result["prefill_forward_passes"], 2.0)
+        self.assertEqual(result["total_forward_passes"], 6.0)
+        self.assertEqual(result["end_to_end_tokens_per_forward_pass"], 5.0)
         self.assertEqual(redraft["redraft_attempts"], 3)
         self.assertAlmostEqual(redraft["redraft_hit_rate"], 1 / 3, places=6)
         self.assertEqual(redraft["average_draft_length"], 14.0)

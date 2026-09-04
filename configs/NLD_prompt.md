@@ -247,95 +247,70 @@ IFEval的评估也出错了，参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/
 
 好的，现在开始写代码和落文档吧，注意：1.把sample数最多的MMLU数据集默认放到遍历实验的最后一个数据集，最后再完成。2.互斥轮的第k个位置出错修正正确/错误要区分具体k是几来统计。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求和你设计的周密方案，不要怕麻烦或降级需求。
 
-## 问题 2：用历史预测最优 block                                                                                                            14:20:26 [77/361]
+现在请你：1.会议这几天新增的各个observations和method实验。2.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个quicknote.md文档，开头是一个时间戳，内容是尽可能清晰简洁地告诉我在当前会话内，我们针对/data/home/wly/dLLM/Nemotron-Labs-Diffusion项目做了什么分析和修改，便于我查阅和其他合作者后续跟进研究。注意不用详细说明具体内容、技术点、分析等，你只需要简洁地记录目前做了哪些事，具体内容或代码可以参见哪个文档或目录等，便于我和合作者之后快速对齐当前项目进展，清晰完整精确就行，不要长篇大论。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的交接文档。3.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个codexnote.md文档，在会话最开始让你读过，开头是一个时间戳，这个文档用于之后我如果开一个全新的codex终端会话，在没有上下文的情况下，codex可以通过这个文档的指导步骤和描述对齐对当前DeepSpec项目的理解(包括解码方式、算法原理、代码组织形式等)，对齐当前的项目进度，便于在把这个文档给codex新会话后，新会话能从当前位置和进度继续进行。这个指导文档不用把左右内容和理解都再写一遍，例如论文、算法原理、代码组织和实验复现此前已经整理在了/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs中，这个codexnote.md可以指导codex新会话怎么去读、理解和对齐当前项目。目标是我只需要告诉新会话按照这个codexnote.md的指导步骤和描述对齐对当前项目，新会话就能从当前理解和进度继续进行。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的内容文档。先不要修改文档，阅读这两份文档当前状态并告诉我是否明白我的意思，是否能完成。
 
-  不要先手工固定“平均接收 3→L8、5→L16、7→L32”。更合适的是预测不同 L 的边际收益，再结合成本选择。
+此前做的试图为每个request灵活选择block size的第一阶段实验，即/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_PyTorch_LinearSpec_block_size_shadow_zh.md所描述的实验正在进行中，已经跑出了一部分结果，参见/data/home/wly/dLLM/NLD_results/observations/pytorch_linearspec_block_size_shadow_results，请你结合目前跑出的这些数据结果帮我分析下当前实验结论，我已经发现block size缩短几乎不会造成靠前部分接收率衰减，大block size的TPF收益主要来源于部分轮超出小block size大小的接收长度。现在我想知道是否有机会设计策略来为下一轮起草灵活选择block size，能够：1.在不破坏或少破坏下一轮接收潜力的情况下，对有明确信号表明下一轮接收长度会小于小block size的采用小block size的起草。这个信号是否存在，是否能找到？2.一旦灵活变换每一轮的block size，历史信息就不一定是当前第一阶段实验里固定的block size=16了，而是可能是每一轮发生变化的block size。在这种情况下是否还能找到合适的历史信号来指导下一轮该怎么变？先不要改代码，请你结合当前阶段性实验结果分析我的想法和问题，以及你是否有什么方案或思路来检索所需信号和实现？
 
-  每轮开始前可用的历史特征建议包括：
+我注意到你提及了即使预测策略成功，serving端只有在不同block能够分桶组batch或使用真正ragged计算时才会转化为算力收益；如果统一padding到batch内最大block，缩块产生的理论计算节省可能被padding抵消这个问题。分桶组batch指的是什么？我的想法是在连续serving场景中，我会对多个request的下一轮draft长度都有一个预测，从而将所有当前request区分为block size=8/16/32。然后每次前向传播我会选择相同block size的一组request进行draft-verify，从而避免同时服务不同block size带来padding开销。这样可实现吗？如果可实现是要用到SGLang引擎还是pytorch就能实现？
 
-  - 最近 1/2/4/8 轮的 M、A、A/L、EWMA。
-  - full-block 次数、连续低接收/高接收轮数。
-  - 上轮 accepted/rejected confidence 均值、最小值、斜率、首次明显下降位置。
-  - 上轮 mismatch 位置、correction confidence、top1-top2 margin。
-  - 当前已生成长度、context 长度、generation phase。
-  - 当前 serving 的 active batch、各 block bucket 占用和 queue pressure。
+好的，现在我们首先解决能否通过历史信号来指导下一轮的block size。考虑block size在{8,16,32}这三者间变化，初始阶段我们选择block size=16，然后根据历史信号来指导block size的变换。注意如之前所述一旦灵活变换每一轮的block size，历史信息就不一定是当前第一阶段实验里固定的block size=16了，而是可能是每一轮发生变化的block size。我希望你设计实验来检索所需信号，能够在不破坏或少破坏下一轮接收潜力的情况下，为下一轮灵活选择合适block size的起草。先不要改代码，请你结合当前阶段性实验结果和分析告诉我这个实验是否可行，如果可行的话你的方案和设计打算怎么做？你的方案不一定基于现有数据离线检索，也可以补充运行block size=8/32来获取confidence或接收信息。
 
-  训练目标不要只做三分类，可以先预测：
+很好，现在我需要你先做其他任务，但我认可你刚刚对灵活选择block size指标实验的方案，请你将刚刚我的问题需求和你的思考回答先以md文档形式落到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations下，便于之后完成其他任务后回溯继续这一任务。
 
-  A8, A16, A32
-  G16 = A16 - A8
-  G32 = A32 - A16
+好的，现在要解决的是Pytorch和SGLang引擎对NLD同一模型都采用LinearSS推理的差异问题。参见/data/home/wly/dLLM/NLD_results/observations中采用SGLang+NemoSkills的结果/data/home/wly/dLLM/NLD_results/observations/sglang_nemo_eval_results和/data/home/wly/dLLM/NLD_results/observations/sglang_linearspec_confidence_results，以及采用Pytorch+LinearSpec推理的结果/data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results和/data/home/wly/dLLM/NLD_results/observations/pytorch_linearspec_confidence_results。用的同一套模型权重，都是LinearSS策略，评估pipeline都是NemoSkills，但是相同block size下，TPF和confidence分布的差异都非常大，采用SGLang引擎的TPF显著低于用Pytorch推理的结果。两套复现实验的指导文档分别参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_eval_pipeline_zh.md和/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md。先不要修改或运行代码，请你检查两套评估的代码和实验结果帮我分析原因，是代码运行一致统计口径的不同(但这无法解释confidence分布的巨大差异)还是测评和模型推理pipeline的差异？还是其他什么原因？
 
-  然后用实测成本 C_L 选择：
+好的，现在请你自行设计检查，必要的话调用GPU实际运行比对。可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意你的检查不能影响和干扰此前的代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展排查。涉及到新写的文档或代码(如果存在)都存放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff目录下。我给你极高的权限，你可以自行决定如何排查，涉及到的操作或实验只要不干扰现有代码和实验，就可以自主执行无需征求我同意，但是务必完成排查任务找到真实原因。找到原因后不急修改代码，告诉我你所找到的原因，并给出你的修复方案，等我许可后再修改。
 
-  L* = argmax_L  predicted_useful_tokens(L) / predicted_cost(L)
+好的，现在请你帮我1.修改SGLang评估的代码，使其正确调用已注册的pre_draft hook，让LoRA进入draft推理，恢复与Pytorch一致的推理行为和性能。这个修改应该是直接改SGLang引擎底层调用逻辑，不影响我此前SGLang相关的各个实验代码吧？是不是只要你改了SGLang引擎的代码，那些代码和实验都能直接恢复正确逻辑运行？2.当前SGLang TPF 不计 prompt prefill，PyTorch 计入，修改当前各个Pytorch实验的代码，使其与SGLang对齐，只考虑decode过程。这个评价指标的修改不影响我此前Pytorch相关的各个实验代码吧？是不是只要你改了，那些代码和实验都能直接恢复一致TPF统计口径运行？3.SGLang confidence trace 包含启动 warmup request；完整 GSM8K 中因此比 decode stats 多 7 轮。影响很小，但应过滤。这是什么意思，什么叫warmup request，对精度和TPF统计有影响吗？先不要改代码，先分析回答我的问题。
 
-  建议模型顺序：
+好的，现在请你：1.修改SGLang评估的代码，使其正确调用已注册的pre_draft hook，让LoRA进入draft推理，恢复与Pytorch一致的推理行为和性能。使得此前SGLang引擎的相关代码和实验如果重新启动都能直接恢复正确逻辑运行。2.修改当前各个Pytorch实验的代码，使其与SGLang对齐，只考虑decode过程。此前已经做的实验结果就不要管了，修改各个Pytorch实验相关接口，使其再次运行的时候汇报的TPF是和SGLang一致的。3.后续的各项指标和分布统计过滤掉SGLang warmup request。
 
-  1. fixed L8/L16/L32；
-  2. last-round 或 EWMA 阈值；
-  3. 线性/序数回归；
-  4. GBDT 等小型非线性模型。
+现在回到此前根据margin_risk重起草的优化方案，还是先关注Pytorch+Nemoskills实现。我注意到当前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md所描述的方案从实验结果/data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results/margin_risk_multi_overlap_20260831_004612/report.md来看命中第三个潜在错误位置P3的概率极小，而new命中概率很高，说明在很多情况下原draft能全部验证通过，提前开启下一轮draft是有益的。基于此我希望进一步修改优化方案，相比当前NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec方案做两点修改：1.不再找找draft sequence中前3个margin_risk>0.5的位置，而是只找前2个(不满2个的话有几个就找几个).2.无论draft sequence中满足margin_risk>0.5的位置有几个，都额外追加一个与随后verify并行的draft sequence new，接着当前draft sequence继续往后起草一个block size。其他要求和此前优化方案一样，包括：注意：1.论文的复现实验和此前的各项实验之后还需要进行，所以这一个新实验所需的代码不能影响和干扰此前的代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展新实验。2.新实验的接口代码文件放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/method下新建一个子文件夹存放，实验结果文件存放到/data/home/wly/dLLM/NLD_results下新建一个子文件夹内，每次运行实验再在这个子文件夹下建立带时间戳的子文件夹。子文件夹内还要在建立后就写一个settings文件记录这一轮实验是做什么，超参设置是什么样。3.写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。4.你应该在修改过程中逐步及时自检和测试。你应该自行选择显存够用的GPU，不一定强求显存或计算当前占用为0的空GPU。全部改完后不需要做一个数据集的完整测试，只要smoke test保全链路能跑通且逻辑无误就行。注意不要一直征求我的权限或询问我。我给你极大的权限可以自主修改任何代码和进行任何实验。整个过程可能较久，你应该逐步完成，严格满足我的要求，不要怕麻烦或降级需求。除非我打断你，你应该自主一直运行下去直到任务完成。5.实验全部完成后应该在/data/home/wly/dLLM/NLD_results对应的结果子文件夹内生成一个md文档，记录对实验结果的统计，包含(1)与pytorch+Nemoskills+block_size=16+greedy和pytorch+Nemoskills+block_size=32+greedy的baseline结果的对比，(2)对新逻辑各种状态(如预测未命中实际错误位置；在第k个预测位置出错，且2nd-confidence修正对；在第k个预测位置出错，但2nd-confidence修正也不对；在所有预测位置之后出错，预测位置实际都正确；整块通过、draft sequence new命中；整块通过，没有或draft sequence new未命中)的计数、占比统计，每个数据集实际平均每个forward计算token数和分布情况，新增各种状态下下一轮verify平均验证通过的token数量，以及下一轮verify平均验证通过的token数量相比当前轮的平均差异,(3)所有统计结果要包含除了AIME24以外各个数据集的结果平均(考虑不同样本数的各个数据集权重一样，防止样本数很多的数据集数据盖掉样本数少的数据集数据)并整理成表格，各个表格中涉及的所有变量参数都要配上相应的中文解释含义和简单的举例说明，每个表格用到的说明附在表格前，不要全部写在文档最后。所有表格的列要居中对齐，但是尽可能压缩每一列的宽度，只要能放下哪一列的最长字段就行不要留额外空格，变量参数名称尽可能压缩(但不要压缩到一两个字，尽量保证语义)。先不要改代码，先告诉我你是否能明白我的意思，并做分析，这个实验是否可行？
 
-  训练/测试必须按完整 request 或 benchmark 划分，不能随机拆 round，否则相邻轮会产生严重数据泄漏。
+并且与verify并行的draft内也会根据margin_risk构造下一轮verify时的并行draft，理想状态下每一步都是最多4row的解码是吗？
 
-  评价重点不是分类准确率，而是：
+好的，那现在来实现吧。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求和你设计的周密方案，不要怕麻烦或降级需求。
 
-  - 相对 per-state oracle 的 utility regret。
-  - 相对固定 L8/L16/L32 的 token loss 和计算节省。
-  - under-selection：选小了而损失的接收 token。
-  - over-selection：选大了但没有获得额外 token。
-  - policy 切换频率和稳定性。
-  - 估计 TPF、Tok/QTok、吞吐与 P95 latency。
+现在请你回顾/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_PyTorch_LinearSpec_dynamic_block_size_history_signal_design_zh.md所记录的我所关心的根据历史信号设计动态block size的设想和思考进度。回顾我的需求和需要设计的方案目标和当前思路，理解无误后告诉我。先不要修改或运行代码。
 
-## 问题 3：预测缩短 block 后的衰减                                                                                                         14:20:37 [36/361]
+很好，现在我需要你基于我的需求和需要设计的方案目标设计代码实验。要求：1.各个数据集无论sample数量多少都要是等权重的，寻找到的最优方案应该是针对除了AIME24以外的所有数据集的全局最优解。2.由于之后真实serving场景要分桶组batch，需要用到SGLang引擎，所以这个实验的真实推理trace采集和信号检索都是要针对刚刚修复完成的SGLang+Nemoskills推理上来做。3.这种策略往往在大batch下有用，此时很容易compute bound，所以不要在不确定的情况下倾向于取大block size，以免造成额外浪费。例如如果block size从8变成16或32，接收长度仅仅从8变成9，这是不划算的，所以你应该尽可能设计大block size能带来较显著接收长度提升时启用的方案。你可以探索两组目标，分别针对默认小block size是8或16。4.MMLU数据集的数据量太大了，对MMLU数据集无论是检索还是验证环节都可以取其中一部分不用全部跑完，例如取10％-20％就行。除此之外，你的实验设计还要注意：1.论文的复现实验和此前的各项实验之后还需要进行，所以这一个新实验所需的代码不能影响和干扰此前的SGLang/Pytorch代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展新实验。2.新实验的接口代码文件放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/observations下新建一个子文件夹存放，实验结果文件存放到/data/home/wly/dLLM/NLD_results/observations下新建一个子文件夹内，每次运行实验再在这个子文件夹下建立带时间戳的子文件夹。子文件夹内还要在建立后就写一个settings文件记录这一轮实验是做什么，超参设置是什么样。3.写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_eval_pipeline_zh.md默认的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。4.你应该在修改过程中逐步及时自检和测试。你应该自行选择显存够用的GPU，不一定强求显存或计算当前占用为0的空GPU。全部改完后不需要做一个数据集的完整测试，只要smoke test保全链路能跑通且逻辑无误就行。注意不要一直征求我的权限或询问我。我给你极大的权限可以自主修改任何代码和进行任何实验。整个过程可能较久，你应该逐步完成，严格满足我的要求，不要怕麻烦或降级需求。除非我打断你，你应该自主一直运行下去直到任务完成。5.实验过程中应该在/data/home/wly/dLLM/NLD_results对应的结果子文件夹内生成一个md文档，记录对实验结果的统计和对目标的检索阶段，所有涉及数据集的统计结果要包含除了AIME24以外各个数据集(MMLU可只选部分sample参与实验)的结果平均(考虑不同样本数的各个数据集权重一样，防止样本数很多的数据集数据盖掉样本数少的数据集数据)并整理成表格，各个表格中涉及的所有变量参数都要配上相应的中文解释含义和简单的举例说明，每个表格用到的说明附在表格前，不要全部写在文档最后。所有表格的列要居中对齐，但是尽可能压缩每一列的宽度，只要能放下哪一列的最长字段就行不要留额外空格，变量参数名称尽可能压缩(但不要压缩到一两个字，尽量保证语义)。先不要改代码，先告诉我你是否能明白我的意思，并做分析，这个实验设计是否可行？
 
-  第一阶段数据已经给出监督目标：
+好的，那现在来实现吧。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求和你设计的周密方案，不要怕麻烦或降级需求。记得写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_eval_pipeline_zh.md默认的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。
 
-  Decay8  = min(A32, 8)  - A8
-  Decay16 = min(A32, 16) - A16
+修改代码和文档，加入如你所述更直观的进度条，文档末尾补充实验各阶段和进度条的描述，便于我对照查看进度。
 
-  使用与问题 2 相同的历史特征，分别做：
+我注意到离线搜索阶段是CPU，这段时间没有GPU占用，如果在这个过程中有其他任务插入实验所用的GPU并占据绝大部分显存，后续的S8/16验证就做不了了。我要求你在离线搜索的过程中仍然保持对GPU的模型权重和预留KV pool等显存的占用，现在代码有这个逻辑吗？
 
-  - 回归：预测 Decay8/Decay16 的数值。
-  - 分类：预测 Decay_L>0、Decay_L≥2 等风险事件。
-  - 校准：按预测风险分桶，检查真实平均衰减是否单调。
+好的，加一个守护进程吧，守护进程就用NLD_SGLang_NeMoSkills_eval_pipeline这个baseline复现的进程就行，也不用做修改，等CPU离线搜索完成把这个进程关掉就行。
 
-  最终可以用多任务模型同时预测：
+守护进程不要空占显存啊，就正常跑SGLang+NeMoSkills在9个数据集上的复现，跑到CPU检索完成终止。
 
-  潜在接收能力 A32
-  缩短到 16 的衰减 Decay16
-  缩短到 8 的衰减 Decay8
+从探索到两类冻结验证全部连续执行的实验跑完了，结果参见/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420，请你阅读并帮我分析结果，是否有结论或下一步要做什么。
 
-  这比仅预测“下一轮接收长度”更贴合你的第三个问题。
+1.守护进程的9集baseline只是起一个在CPU搜索过程中占用显存的作用，并不是真的要获取这个任务结果并跑完，什么时候CPU搜索完了这个baseline进程也就停止，现在是这样吗？2.你说守护进程阻断搜索，但是/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/runtime/search_guardian_baseline/guardian.log里又出现了类似nemo-run/0 Remaining generations:   0%|          | 1/14042 [00:01<5:10:38,  1.33s/it]这样的搜索进度条是什么意思？3.你说trace采集完了，但是/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/eval_runs里只有explore_s8，没有explore_s16或explore_s32正常吗？先不要改代码或运行，先分析回答我这些问题。
 
-  还可以额外比较一个“当前 L8 probe”方案：先做 L8 draft，用当前轮 confidence 判断是否升级到 L16/L32。它可能比纯历史更准，但会多一次 draft，而且 L8 draft 不能无
-  损扩展成 L16/L32，因此必须把 probe 成本计入，不能当作免费信号。
+好的，我明白你意思了。现在请你基于刚刚的错误诊断，并再次仔细检查当前代码和实验进度，修改代码和文档，帮我实现：1.能在当前实验目录基础上正确继续执行后续探索和验证等全部实验流程，最终实现我的信号搜索目标。并在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_dynamic_block_size_history_signal_zh.md文档末尾追加在当前实验目录基础上正确继续执行后续探索和验证等全部实验流程的说明和单行命令行。2.如果之后我想从头运行整个实验，也要能支持正确完整运行不出错，如果需要的话也相应更新文档里的命令行。先不要修改代码，先告诉我你是否能明白我的意思，并做分析，这个修复是否可行？
 
-  ## 大 batch serving 的额外约束
+好的，那现在来实现吧。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求，不要怕麻烦或降级需求。
 
-  每请求动态 L 只有在 scheduler 能利用它时才会省计算：
+继续现有实验：
 
-  - 如果 L8、L16、L32 混在一个 dense batch 中并统一 padding 到 32，forward 往往仍按 32 计算，小 block 几乎不省成本。
-  - 更现实的实现是设置 8/16/32 三个 bucket，按选择结果分别组成 CUDA graph batch。
-  - 但 bucket 会引入 batch fragmentation 和额外等待，因此还要记录 bucket occupancy、padding ratio、物理 launch 数和 scheduler wait。
+  bash observations/sglang_dynamic_block_history_signal/eval_dynamic_block_history.sh --stage remaining --run-dir /data/home/wly/dLLM/NLD_results/
+  observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420
 
-  所以“每请求最优 L”和“整个 serving batch 最优调度”不是完全相同的问题。
+  以后从头运行：
 
-  ## 推荐实验顺序
+  bash observations/sglang_dynamic_block_history_signal/eval_dynamic_block_history.sh --stage all --gpu-devices 2 --batch-size 4 --client-concurrency 4
+  --mmlu-max-samples 2000
 
-  一轮 shadow 数据采集可以完成：
+继续运行测试好像又出错了，参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_prompt.md第308-326行和结果目录/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420
 
-  - block 容量效应与 lookahead 效应分解；
-  - 历史特征对 A8/A16/A32 的预测；
-  - 历史特征对 Decay8/Decay16 的预测；
-  - adaptive policy 的离线 replay 和 oracle 上界。
+现在回到此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md所描述的优化(找draft sequence中前3个margin_risk>0.5的位置(不满3个的话有几个就找几个)，对这些位置都构造与随后verify并行的draft候选，构造和选取逻辑与当前找第一个错误位置构造的draft逻辑一致。如果draft sequence中满足margin_risk>0.5的位置≤2个(包括没有)，就额外追加一个与随后verify并行的draft sequence new，接着当前draft sequence继续往后起草一个block size，如果确实draft sequence验证都通过，就检查最后的bonus token和继续起草的draft sequence new第一个起草token是否一致，如果一致就说明也能复用)，注意不是后来又写的/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method/NLD_PyTorch_NeMoSkills_margin_risk_two_plus_new_overlap_linearspec_zh.md所描述的只找前两个，一定有draft sequence new的优化。不要改代码或运行，告诉我是否明确。
 
-  但它不能最终证明真实 serving 吞吐会提升，因为 canonical 轨迹固定为 L16，而且 shadow 会污染计时。之后还需要第二阶段在线验证：
+现在我想新写一个优化策略，改变为：找draft sequence中前3个margin_risk>0.5的位置，如果margin_risk>0.5的位置≤2个(包括没有)，对这些位置都构造与随后verify并行的draft候选，构造和选取逻辑与当前找第一个错误位置构造的draft逻辑一致。并额外追加一个与随后verify并行的draft sequence new，接着当前draft sequence继续往后起草一个block size，如果确实draft sequence验证都通过，就检查最后的bonus token和继续起草的draft sequence new第一个起草token是否一致，如果一致就说明也能复用。如果margin_risk>0.5的位置存在第3个，就对第1个位置取2nd和3rd confidence，对第2个位置取2nd confidence构造与随后verify并行的draft候选，不对第三个位置构造也不构造draft sequence new，使得与verify一起最多还是4 row并行。不要改代码或运行，告诉我是否理解我的意思。
 
-  - 固定 L8、L16、L32；
-  - 最佳 history-only policy；
-  - 如有价值，再测 history+current-probe；
-  - 使用相同输入顺序、GPU、并发和随机种子；
-  - 分别测 batch/concurrency=1 的语义控制，以及 16/32 等高并发 serving；
-  - 报告任务 Accuracy、token 序列一致性、TPF、Tok/QTok、吞吐、P50/P95 latency、bucket 利用率。
+好的，现在我需要你基于这种新策略帮我实现Pytorch+NemoSkills实现。注意：1.论文的复现实验和此前的各项实验之后还需要进行，所以这一个新实验所需的代码不能影响和干扰此前的代码和实验，并且要能和此前所有实验并行不发生冲突(例如自行搜索可用端口不会端口冲突，不会干扰此前实验的代码等)，涉及重构的部分应该要新写代码文件。保证此前各个实验能继续正常进行的情况下开展新实验。2.新实验的接口代码文件放到/data/home/wly/dLLM/Nemotron-Labs-Diffusion/method下新建一个子文件夹存放，实验结果文件存放到/data/home/wly/dLLM/NLD_results下新建一个子文件夹内，每次运行实验再在这个子文件夹下建立带时间戳的子文件夹。子文件夹内还要在建立后就写一个settings文件记录这一轮实验是做什么，超参设置是什么样。3.写好代码后在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method下新写一个md文档，告诉我新实验测评的说明和指令(包括但不限于命令行、怎么控制参数、所有命令行的详细含义和参数解读，注意命令行都要是单行形式)，注意指令要和此前/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_PyTorch_NeMoSkills_eval_pipeline_zh.md的参数和超参设置对齐，例如支持单/多数据集，支持block size，支持选GPU ID支持预留显存等。4.你应该在修改过程中逐步及时自检和测试。你应该自行选择显存够用的GPU，不一定强求显存或计算当前占用为0的空GPU。全部改完后不需要做一个数据集的完整测试，只要smoke test保全链路能跑通且逻辑无误就行。注意不要一直征求我的权限或询问我。我给你极大的权限可以自主修改任何代码和进行任何实验。整个过程可能较久，你应该逐步完成，严格满足我的要求，不要怕麻烦或降级需求。除非我打断你，你应该自主一直运行下去直到任务完成。5.实验全部完成后应该在/data/home/wly/dLLM/NLD_results对应的结果子文件夹内生成一个md文档，记录对实验结果的统计，包含(1)与pytorch+Nemoskills+block_size=16+greedy和pytorch+Nemoskills+block_size=32+greedy的baseline结果的对比，(2)对新逻辑各种状态(如预测未命中实际错误位置；在第k个预测位置出错，且2nd-confidence或3rd-confidence修正对；在第k个预测位置出错，但2nd-confidence或3rd-confidence修正也不对；在所有预测位置之后出错，预测位置实际都正确；整块通过、draft sequence new命中；整块通过，没有或draft sequence new未命中)的计数、占比统计，每个数据集实际平均每个forward计算token数和分布情况，新增各种状态下下一轮verify平均验证通过的token数量，以及下一轮verify平均验证通过的token数量相比当前轮的平均差异,(3)所有统计结果要包含除了AIME24以外各个数据集的结果平均(考虑不同样本数的各个数据集权重一样，防止样本数很多的数据集数据盖掉样本数少的数据集数据)并整理成表格，各个表格中涉及的所有变量参数都要配上相应的中文解释含义和简单的举例说明，每个表格用到的说明附在表格前，不要全部写在文档最后。所有表格的列要居中对齐，但是尽可能压缩每一列的宽度，只要能放下哪一列的最长字段就行不要留额外空格，变量参数名称尽可能压缩(但不要压缩到一两个字，尽量保证语义)。6.除了策略和报告统计改一改，其他基础逻辑和实现可以复用/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md所描述的优化实现，注意包括使用此前更新后的TPF统计口径，和当前PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec对齐。先不要改代码，先告诉我你是否能明白我的意思，并做分析，这个实验是否可行？
+
+好的，那现在来实现吧。如果涉及轻量级测试实验可以自行选择显存够放且优先选算力占用小的GPU，不用管GPU上是否有其他任务。注意严格满足我的要求和你设计的周密方案，不要怕麻烦或降级需求。
+
+现在请你：1.回忆自2026-08-31 10:37:20 +0800（CST）以来新增的各个observations和method实验。2.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个quicknote.md文档，开头是一个时间戳，内容是尽可能清晰简洁地告诉我在当前会话内，我们针对/data/home/wly/dLLM/Nemotron-Labs-Diffusion项目做了什么分析和修改，便于我查阅和其他合作者后续跟进研究。注意不用详细说明具体内容、技术点、分析等，你只需要简洁地记录目前做了哪些事，具体内容或代码可以参见哪个文档或目录等，便于我和合作者之后快速对齐当前项目进展，清晰完整精确就行，不要长篇大论。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的交接文档。3.在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/memory里有一个codexnote.md文档，在会话最开始让你读过，开头是一个时间戳，这个文档用于之后我如果开一个全新的codex终端会话，在没有上下文的情况下，codex可以通过这个文档的指导步骤和描述对齐对当前Nemotron-Labs-Diffusion项目的理解(包括解码方式、算法原理、代码组织形式等)，对齐当前的项目进度，便于在把这个文档给codex新会话后，新会话能从当前位置和进度继续进行。这个指导文档不用把左右内容和理解都再写一遍，例如论文、算法原理、代码组织和实验复现此前已经整理在了/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs中，这个codexnote.md可以指导codex新会话怎么去读、理解和对齐当前项目。目标是我只需要告诉新会话按照这个codexnote.md的指导步骤和描述对齐对当前项目，新会话就能从当前理解和进度继续进行。现在请你参照quicknote.md文档内此前交接记录的内容，在末尾追加新的当前时间戳并记录新增的内容文档。先不要修改文档，阅读这两份文档当前状态并告诉我是否明白我的意思，是否能完成。

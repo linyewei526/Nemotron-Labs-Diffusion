@@ -1,0 +1,70 @@
+{
+  "backend": "native_pytorch",
+  "benchmark": "gsm8k",
+  "decode": {
+    "average_completion_tokens": 123.0,
+    "average_forward_passes_per_sample": 31.0,
+    "benchmark_wall_output_tokens_per_s": 6.7562,
+    "benchmark_wall_requests_per_s": 0.054928,
+    "benchmark_wall_time_s": 36.411011,
+    "completion_tokens": 246.0,
+    "failed_request_count": 0,
+    "finish_reasons": {
+      "stop": 2
+    },
+    "forward_passes": 62.0,
+    "model_generation_time_s": 9.290676,
+    "model_output_tokens_per_s": 26.4782,
+    "modes": [
+      "linearspec_lora"
+    ],
+    "per_request_model_output_tokens_per_s": {
+      "mean": 26.483,
+      "p50": 26.483,
+      "p90": 27.91828,
+      "p95": 28.09769,
+      "p99": 28.241218
+    },
+    "per_request_model_time_s": {
+      "mean": 4.645338,
+      "p50": 4.645338,
+      "p90": 4.655432,
+      "p95": 4.656693,
+      "p99": 4.657703
+    },
+    "prompt_tokens": 173.0,
+    "queue_wait_s": {
+      "mean": 0.000602,
+      "p50": 0.000602,
+      "p90": 0.000852,
+      "p95": 0.000883,
+      "p99": 0.000908
+    },
+    "raw_generated_tokens": 246.0,
+    "request_count": 2,
+    "request_time_s": {
+      "mean": 4.673189,
+      "p50": 4.673189,
+      "p90": 4.681343,
+      "p95": 4.682363,
+      "p99": 4.683178
+    },
+    "sum_request_time_s": 9.346377,
+    "tokens_per_forward_pass": 3.9677,
+    "top_k_applied": false,
+    "top_k_requested": [
+      -1
+    ],
+    "top_p_applied": false,
+    "top_p_requested": [
+      0.95
+    ]
+  },
+  "metric_notes": {
+    "benchmark_wall_output_tokens_per_s": "completion tokens divided by the complete NeMo-Skills benchmark command wall time",
+    "model_output_tokens_per_s": "completion tokens divided by synchronized native generation time; excludes prompt formatting/tokenization and NeMo scoring",
+    "tokens_per_forward_pass": "returned completion tokens divided by the NFE reported by the model remote code",
+    "top_k_applied": "false for current native NLD generation methods; top_k is accepted by the OpenAI API but is not forwarded to the model methods",
+    "top_p_applied": "false for current native NLD generation methods; top_p is accepted by the OpenAI API but the model methods expose temperature only"
+  }
+}

@@ -69,3 +69,32 @@
 - 当前模型路径为 `/data1/linyewei/models/Nemotron-Labs-Diffusion-8B`，数据集目录为 `/data1/linyewei/datasets/NLD`，Conda 环境为 `nld_sglang`。
 - 新开发者或新服务器若找不到任一路径/环境，应先向用户确认新的项目、结果、模型、数据集和环境映射，再指导修改运行默认值、命令或参数；不要静默创建空目录、替换模型/数据或伪造缺失结果。
 - 历史 Settings、实验报告和 `configs/experiments/` 中的旧绝对路径属于 provenance，通常保留；真正需要改的是活跃代码默认值和当前执行命令。
+
+---
+
+时间戳：2026-08-31 10:37:20 +0800（CST）
+
+## 增量交接记录
+
+1. 新增 observation
+   - 多 block 同状态影子实验：代码 `observations/pytorch_linearspec_block_size_shadow/`，手册 `configs/observations/NLD_PyTorch_LinearSpec_block_size_shadow_zh.md`，结果根目录 `/data/home/wly/dLLM/NLD_results/observations/pytorch_linearspec_block_size_shadow_results/`。用于对照 L=4/8/16/32 的接收及历史特征；正式任务仍在运行。
+   - 自适应首错位置免训练搜索：代码 `observations/adaptive_failure_locator_search/`，手册 `configs/observations/NLD_PyTorch_LinearSpec_adaptive_failure_locator_search_zh.md`。九个非 AIME24 数据集已完成，结果与策略统计见 `/data/home/wly/dLLM/NLD_results/observations/adaptive_failure_locator_search_results/adaptive_failure_locator_20260828_203527/`。
+   - 历史自适应 margin-risk 搜索：代码 `observations/adaptive_margin_history_search/`，手册 `configs/observations/NLD_PyTorch_LinearSpec_adaptive_margin_history_search_zh.md`。已在九数据集全部有效轮上按数据集等权完成全局搜索，结果和最优策略说明见 `/data/home/wly/dLLM/NLD_results/observations/adaptive_margin_history_search_results/adaptive_margin_history_20260830_153105/report.md`。
+
+2. 新增 method
+   - 固定 `margin_risk>0.5` 单候选 overlap：代码 `method/margin_risk_overlap_linearspec/`，手册 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_overlap_linearspec_zh.md`，结果根目录 `/data/home/wly/dLLM/NLD_results/margin_risk_overlap_linearspec/`。
+   - 固定 `margin_risk>0.5` 多候选与 continuation overlap：代码 `method/margin_risk_multi_overlap_linearspec/`，手册 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md`，结果根目录 `/data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results/`。
+   - 两套入口现默认采用 efficiency-only 口径：报告不展示 accuracy，单请求 OOM 会被记录并排除出效率均值，同时以 Att/OK/Fail/OOM/Cov 披露覆盖率；`--require-accuracy` 恢复严格旧行为。具体边界和命令以各自手册为准。
+
+3. 当前运行快照
+   - Block-size shadow：`block_size_shadow_20260828_153452` 仍在 GPU 3 运行 MMLU；报告已有 6 个非 AIME24 数据集，IFEval 和 LiveCodeBench 尚待运行。
+   - 单候选 margin-risk：`margin_risk_overlap_linearspec_20260831_004647` 仍在 GPU 1 运行，当前报告完成 6/9，正在 IFEval。
+   - 多候选 margin-risk：`margin_risk_multi_overlap_20260831_004612` 仍在 GPU 3 运行，当前报告完成 5/9，正在 GPQA。
+   - 上述活跃任务的隐藏工作目录不得移动或删除。旧目录 `margin_risk_overlap_linearspec_20260830_190823` 只有 3 份 metrics、5 份 error，不是正式完整结果。
+   - 开始本次交接更新前，HEAD 为 `3359200accd080e3172b36c2aac0e2eedf370f5c`，工作树仅有用户的 `configs/NLD_prompt.md` 修改；本次另外只修改这两份 memory 文档。新会话仍须实时复核。
+
+## 后续优先事项
+
+- 等待三轮活跃实验自然完成，再检查最终 Settings、metrics/error、覆盖率、增量报告和隐藏工作目录清理情况。
+- 解读效率时以各数据集等权结果为主；若 Cov 小于 100%，明确结果只覆盖成功请求，不能当作全请求均值。
+- 不要从零重做上述搜索；优先读取对应 report、trace/summaries 和方法手册后继续分析或设计下一轮独立实验。

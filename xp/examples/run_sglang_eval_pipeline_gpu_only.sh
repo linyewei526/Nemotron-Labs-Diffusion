@@ -647,10 +647,20 @@ for bench_spec in "${PREP_BENCHES[@]}"; do
     fi
 done
 
-if [[ -n "$SGLANG_DRAFT_ALIGNMENT_TRACE_FILE" ]]; then
-    : > "$SGLANG_DRAFT_ALIGNMENT_TRACE_FILE"
-    echo "  Cleared draft-alignment startup trace records: $SGLANG_DRAFT_ALIGNMENT_TRACE_FILE"
-fi
+# SGLang issues an internal generation request before reporting healthy.  The
+# request is useful for warming kernels/caches, but it is not a benchmark
+# sample.  Decode stats are reset per benchmark below; reset every optional
+# analysis trace here as well so downstream distributions contain real
+# NeMo-Skills requests only.
+for startup_trace in \
+    "$SGLANG_CONFIDENCE_TRACE_FILE" \
+    "$SGLANG_LOW_CONFIDENCE_TRACE_FILE" \
+    "$SGLANG_DRAFT_ALIGNMENT_TRACE_FILE"; do
+    if [[ -n "$startup_trace" ]]; then
+        : > "$startup_trace"
+        echo "  Cleared SGLang startup/warmup trace records: $startup_trace"
+    fi
+done
 
 echo "[4/5] Running benchmark evaluation through timing proxy..."
 PIPELINE_FAILED=0

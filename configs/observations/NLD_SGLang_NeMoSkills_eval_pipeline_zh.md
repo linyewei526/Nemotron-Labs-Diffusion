@@ -647,6 +647,5 @@ OUTPUT_PATH/eval_YYYYMMDD_HHMMSS/error_math-500.json
 ```
 
 ```bash
-bash observations/eval_sglang.sh --mode linearspec_lora --benchmarks human-eval:1,mbpp:1,livecodebench-cpp:1,gsm8k:1,math-500:1,aime24:1,aime25:1,gpqa:1,mmlu:1,ifeval:1 --gpu-devices 0 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 30 --block-size 16 --output-path /data/home/wly/dLLM/NLD_results/observations/sglang_nemo_eval_results
-bash observations/eval_sglang.sh --mode linearspec_lora --benchmarks gpqa:1,ifeval:1 --gpu-devices 2 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 40 --block-size 32 --output-path /data/home/wly/dLLM/NLD_results/observations/sglang_nemo_eval_results
+bash observations/eval_sglang.sh --mode linearspec_lora --benchmarks human-eval:1,mbpp:1,livecodebench-cpp:1,gsm8k:1,math-500:1,aime24:1,aime25:1,gpqa:1,mmlu:1,ifeval:1 --gpu-devices 0 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 0 --block-size 16 --output-path /data/home/wly/dLLM/NLD_results/observations/sglang_nemo_eval_results
 ```

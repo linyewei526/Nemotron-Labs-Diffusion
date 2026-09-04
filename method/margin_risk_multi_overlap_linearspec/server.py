@@ -228,7 +228,9 @@ class MarginRiskMultiOverlapEngine:
                 )
                 model_time_s = native_end - native_start
                 request_time_s = time.perf_counter() - arrival_time
-                nfe = float(decode_stats.physical_nfe)
+                total_nfe = float(decode_stats.physical_nfe)
+                prefill_nfe = 1.0 if total_nfe > 0 else 0.0
+                decode_nfe = max(total_nfe - prefill_nfe, 0.0)
                 overlap = decode_stats.to_dict()
                 stat = {
                     "ok": True,
@@ -242,8 +244,12 @@ class MarginRiskMultiOverlapEngine:
                     "raw_generated_tokens": raw_generated_tokens,
                     "requested_tokens": requested_tokens,
                     "generation_budget": generation_budget,
-                    "nfe": nfe,
-                    "tokens_per_forward_pass": completion_tokens / nfe if nfe else None,
+                    "nfe": decode_nfe,
+                    "decode_nfe": decode_nfe,
+                    "prefill_nfe": prefill_nfe,
+                    "total_nfe": total_nfe,
+                    "tokens_per_forward_pass": completion_tokens / decode_nfe if decode_nfe else None,
+                    "end_to_end_tokens_per_forward_pass": completion_tokens / total_nfe if total_nfe else None,
                     "model_time_s": _rounded(model_time_s),
                     "queue_wait_s": _rounded(queue_wait_s),
                     "request_time_s": _rounded(request_time_s),
@@ -269,7 +275,10 @@ class MarginRiskMultiOverlapEngine:
                     "text": returned_text,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "nfe": nfe,
+                    "nfe": decode_nfe,
+                    "decode_nfe": decode_nfe,
+                    "prefill_nfe": prefill_nfe,
+                    "total_nfe": total_nfe,
                     "finish_reason": finish_reason,
                 }
             except Exception as exc:
@@ -306,6 +315,9 @@ class MarginRiskMultiOverlapEngine:
                         "prompt_tokens": prompt_tokens,
                         "completion_tokens": 0,
                         "nfe": 0.0,
+                        "decode_nfe": 0.0,
+                        "prefill_nfe": 0.0,
+                        "total_nfe": 0.0,
                         "finish_reason": "length",
                     }
                 raise
@@ -425,6 +437,9 @@ def create_app(engine: MarginRiskMultiOverlapEngine) -> FastAPI:
                 "completion_tokens": result["completion_tokens"],
                 "total_tokens": result["prompt_tokens"] + result["completion_tokens"],
                 "nfe": result["nfe"],
+                "decode_nfe": result["decode_nfe"],
+                "prefill_nfe": result["prefill_nfe"],
+                "total_nfe": result["total_nfe"],
             },
         }
 

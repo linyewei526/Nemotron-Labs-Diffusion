@@ -183,7 +183,8 @@ def run_one_task(model, tokenizer, task: Task, args) -> dict:
     correct = 0
     total = 0
     total_new_tokens = 0
-    total_nfe = 0
+    total_decode_nfe = 0
+    total_model_nfe = 0
     t0 = time.time()
     for i, row in enumerate(ds):
         question = row[task.question_field]
@@ -206,25 +207,34 @@ def run_one_task(model, tokenizer, task: Task, args) -> dict:
         correct += int(ok)
         total += 1
         total_new_tokens += int(new_ids.numel())
-        total_nfe += int(nfe) if isinstance(nfe, (int, float)) else 0
+        model_nfe = int(nfe) if isinstance(nfe, (int, float)) else 0
+        # HF LinearSpec includes one causal prompt prefill; SGLang's TPF starts
+        # at draft/verify decode, so exclude that prefill here as well.  The HF
+        # AR and block-diffusion methods already match their SGLang NFE paths.
+        prefill_nfe = 1 if args.mode == "linear_spec" and model_nfe > 0 else 0
+        decode_nfe = max(model_nfe - prefill_nfe, 0)
+        total_model_nfe += model_nfe
+        total_decode_nfe += decode_nfe
 
         if (i + 1) % args.print_every == 0:
             acc = 100.0 * correct / total
-            tpf = total_new_tokens / max(total_nfe, 1)
+            tpf = total_new_tokens / max(total_decode_nfe, 1)
             elapsed = time.time() - t0
             print(f"  [{i+1:5d}/{len(ds)}]  acc={acc:5.2f}%  "
                   f"avg_tok={total_new_tokens/total:6.1f}  "
-                  f"avg_nfe={total_nfe/total:6.1f}  "
+                  f"avg_nfe={total_decode_nfe/total:6.1f}  "
                   f"TPF={tpf:5.2f}  ({elapsed:.0f}s)", flush=True)
 
     acc = 100.0 * correct / max(total, 1)
     avg_tok = total_new_tokens / max(total, 1)
-    avg_nfe = total_nfe / max(total, 1)
-    tpf = total_new_tokens / max(total_nfe, 1)
+    avg_nfe = total_decode_nfe / max(total, 1)
+    avg_total_nfe = total_model_nfe / max(total, 1)
+    tpf = total_new_tokens / max(total_decode_nfe, 1)
     print(f"  ✓ {task.name:<12} acc={acc:5.2f}%  avg_tok={avg_tok:6.1f}  "
           f"avg_nfe={avg_nfe:6.1f}  TPF={tpf:5.2f}  ({total} problems)", flush=True)
     return dict(task=task.name, num_entries=total, accuracy=acc,
-                avg_tokens=avg_tok, avg_nfe=avg_nfe, tpf=tpf,
+                avg_tokens=avg_tok, avg_nfe=avg_nfe,
+                avg_total_nfe=avg_total_nfe, tpf=tpf,
                 elapsed_seconds=time.time() - t0)
 
 

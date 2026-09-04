@@ -240,7 +240,7 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
         "",
         "## 2. 请求覆盖与解码效率",
         "",
-        "变量说明：`Att/OK/Fail/OOM` 是请求尝试数、纳入效率聚合的成功数、排除的失败数和其中因显存不足跳过的数量；`Cov=OK/Att`。`TPF` 是成功请求返回 completion token/物理 encoder forward；`NFE` 是成功请求每样本平均物理 forward；`TPS` 是同步模型生成阶段 token/s。示例：Att=164、OK=163、OOM=1 时，所有效率均值只来自 163 个成功请求。四行 fused forward 仍只计一次，需结合 FwdTok 和 padding 表。accuracy 不进入本报告。",
+        "变量说明：`Att/OK/Fail/OOM` 是请求尝试数、纳入效率聚合的成功数、排除的失败数和其中因显存不足跳过的数量；`Cov=OK/Att`。`TPF` 是成功请求返回 completion token/decode encoder forward，`NFE` 是成功请求每样本平均 decode forward，二者都排除 prompt prefill 并与 SGLang 对齐；`TPS` 是同步模型生成阶段 token/s。示例：Att=164、OK=163、OOM=1 时，所有效率均值只来自 163 个成功请求。四行 fused forward 仍只计一次，需结合 FwdTok 和 padding 表。accuracy 不进入本报告。",
         "",
     ])
     compare_rows: list[list[Any]] = []

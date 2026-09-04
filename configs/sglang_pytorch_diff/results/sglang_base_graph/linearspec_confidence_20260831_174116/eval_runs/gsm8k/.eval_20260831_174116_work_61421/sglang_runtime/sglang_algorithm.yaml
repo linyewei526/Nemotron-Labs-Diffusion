@@ -1,0 +1,5 @@
+algorithm: LinearSpec
+causal_context: true
+block_size: 16
+stats_file: /data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_base_graph/linearspec_confidence_20260831_174116/eval_runs/gsm8k/.eval_20260831_174116_work_61421/sglang_runtime/sglang_decode_stats.jsonl
+confidence_trace_file: /data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_base_graph/linearspec_confidence_20260831_174116/traces/raw_trace_gsm8k.jsonl

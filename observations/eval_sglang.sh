@@ -790,6 +790,8 @@ done
 
 if [[ "${KEEP_SERVER,,}" == "true" || "$KEEP_SERVER" == "1" ]]; then
     echo "INFO: --keep-server is set; internal work dir kept: $INTERNAL_JOB_DIR"
+elif [[ "$BENCHMARK_ERRORS_RECORDED" != "0" && "${NLD_KEEP_FAILED_WORK_DIR:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]; then
+    echo "INFO: benchmark failure detected; internal work dir kept for diagnostics: $INTERNAL_JOB_DIR"
 else
     rm -rf "$INTERNAL_JOB_DIR"
 fi
@@ -799,4 +801,8 @@ echo "Completed SGLang NeMo-Skills eval."
 echo "Final output dir: $FINAL_JOB_DIR"
 if [[ "$BENCHMARK_ERRORS_RECORDED" != "0" ]]; then
     echo "One or more benchmarks failed; see error_<benchmark>.json files in the final output dir."
+    if [[ "${NLD_FAIL_ON_BENCHMARK_ERROR:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]; then
+        echo "ERROR: benchmark failure is fatal because NLD_FAIL_ON_BENCHMARK_ERROR is enabled." >&2
+        exit 86
+    fi
 fi

@@ -201,6 +201,24 @@ class NativePyTorchEngine:
             **common,
         )
 
+    def _forward_pass_breakdown(self, model_nfe: float) -> tuple[float, float, float]:
+        """Return ``(decode, prefill, total)`` in the SGLang metric convention.
+
+        The HF LinearSpec remote code includes its one causal prompt prefill in
+        ``nfe``.  SGLang's LinearSpec decode stats begin with the first draft /
+        verify block, so remove that prefill from the canonical NFE/TPF.  The
+        current AR and block-diffusion remote methods already expose the same
+        effective NFE convention used by their SGLang metric paths.
+        """
+        total_nfe = max(float(model_nfe), 0.0)
+        prefill_nfe = (
+            1.0
+            if total_nfe > 0 and self.mode in {"linearspec_base", "linearspec_lora"}
+            else 0.0
+        )
+        decode_nfe = max(total_nfe - prefill_nfe, 0.0)
+        return decode_nfe, prefill_nfe, total_nfe
+
     def generate(
         self,
         request: ChatCompletionRequest,
@@ -273,7 +291,9 @@ class NativePyTorchEngine:
                 model_time_s = native_end - native_start
                 request_end = time.perf_counter()
                 request_time_s = request_end - arrival_time
-                nfe_value = float(nfe)
+                decode_nfe, prefill_nfe, total_nfe = self._forward_pass_breakdown(
+                    float(nfe)
+                )
                 stat = {
                     "ok": True,
                     "request_id": request_id,
@@ -285,9 +305,18 @@ class NativePyTorchEngine:
                     "raw_generated_tokens": raw_generated_tokens,
                     "requested_tokens": requested_tokens,
                     "generation_budget": generation_budget,
-                    "nfe": nfe_value,
+                    # ``nfe`` is the canonical decode-only value used by all
+                    # newly generated metrics.  Keep the full accounting
+                    # explicit so end-to-end analyses remain possible.
+                    "nfe": decode_nfe,
+                    "decode_nfe": decode_nfe,
+                    "prefill_nfe": prefill_nfe,
+                    "total_nfe": total_nfe,
                     "tokens_per_forward_pass": (
-                        completion_tokens / nfe_value if nfe_value > 0 else None
+                        completion_tokens / decode_nfe if decode_nfe > 0 else None
+                    ),
+                    "end_to_end_tokens_per_forward_pass": (
+                        completion_tokens / total_nfe if total_nfe > 0 else None
                     ),
                     "model_time_s": _round(model_time_s),
                     "queue_wait_s": _round(queue_wait_s),
@@ -311,7 +340,10 @@ class NativePyTorchEngine:
                     "text": returned_text,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "nfe": nfe_value,
+                    "nfe": decode_nfe,
+                    "decode_nfe": decode_nfe,
+                    "prefill_nfe": prefill_nfe,
+                    "total_nfe": total_nfe,
                     "finish_reason": finish_reason,
                 }
             except Exception as exc:
@@ -435,6 +467,9 @@ def create_app(engine: NativePyTorchEngine) -> FastAPI:
                 "completion_tokens": result["completion_tokens"],
                 "total_tokens": result["prompt_tokens"] + result["completion_tokens"],
                 "nfe": result["nfe"],
+                "decode_nfe": result["decode_nfe"],
+                "prefill_nfe": result["prefill_nfe"],
+                "total_nfe": result["total_nfe"],
             },
         }
 

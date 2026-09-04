@@ -308,8 +308,9 @@ Judge benchmark 的 `--judge-model`、`--judge-server-address`、`--judge-server
 
 | 字段 | 含义 |
 |---|---|
-| `forward_passes` / `physical_nfe` | 实际 encoder 调用次数；两行 fused batch 算 1 次物理 forward |
-| `tokens_per_forward_pass` / `tpf` | API completion token 数除以 physical NFE，包含 prefill NFE |
+| `forward_passes` / `decode_forward_passes` | decode 阶段实际 encoder 调用次数；排除 prompt prefill，两行 fused batch 算 1 次物理 forward |
+| `total_forward_passes` / `physical_nfe` | 包含 prompt prefill 的总 encoder 调用次数，用于内部一致性审计 |
+| `tokens_per_forward_pass` / `tpf` | API completion token 数除以 decode NFE，与 SGLang 口径一致 |
 | `model_output_tokens_per_s` / `tps` | completion token 除以 CUDA 同步的模型生成时间，仅作参考 TPS |
 | `processed_rows` | 所有 forward 实际处理的 batch row 总数，显示 fused batch 的额外工作 |
 | `processed_query_tokens` | 所有 forward 的 `batch × query length` 总和 |
@@ -357,6 +358,6 @@ Judge benchmark 的 `--judge-model`、`--judge-server-address`、`--judge-server
 - 真实模型等价性测试：同一个 GSM8K prompt 生成 131 token，与逐 token `ar_generate` 的完整 token IDs 完全一致；自主 redraft 路径实际触发并发生 full/partial 后缀复用。
 - NeMo-Skills 全链路 smoke：GSM8K 单样本 `symbolic_correct=100%`，结果目录、Settings、自动 GPU、OS 原子端口、服务、评分、指标合并、紧凑产物和成功清理均通过。
 
-本次 smoke 的物理 NFE 为 31、TPF 为 4.2258、参考模型 TPS 为 82.1885；20 轮中执行 19 次 fused 尝试并实际复用 10 次，包含直接触发命中 5 次、下游修正命中 4 次、整块 bonus 命中 1 次。5 次为完整长度复用，5 次为部分后缀复用，实际保留长度范围为 10 到 16。
+本段 smoke 的物理 NFE=31、TPF=4.2258 是修改前包含 prefill 的历史口径；当前重新运行会另外报告 decode NFE，并用它计算默认 TPF。该次 smoke 的状态结论不变：20 轮中执行 19 次 fused 尝试并实际复用 10 次，包含直接触发命中 5 次、下游修正命中 4 次、整块 bonus 命中 1 次。5 次为完整长度复用，5 次为部分后缀复用，实际保留长度范围为 10 到 16。
 
 验收产物：`/data/home/wly/dLLM/NLD_results/confidence_mask_redraft_linearspec_20260817_175440/`。这些数字只用于证明链路和分支确实运行，不代表完整 benchmark 的准确率或稳定性能结论。

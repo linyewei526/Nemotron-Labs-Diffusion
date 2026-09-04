@@ -272,8 +272,9 @@ judge benchmark 的 `--judge-model`、`--judge-server-address`、`--judge-server
 
 | 字段 | 含义 |
 |---|---|
-| `forward_passes` / `physical_nfe` | 真实 encoder 调用次数；两行 fused batch 仍算一次物理 forward |
-| `tokens_per_forward_pass` / `tpf` | API 返回 completion token 总数除以 physical NFE；包含 prefill NFE |
+| `forward_passes` / `decode_forward_passes` | decode 阶段真实 encoder 调用次数；排除一次 prompt prefill，两行 fused batch 仍算一次物理 forward |
+| `total_forward_passes` / `physical_nfe` | 包含 prompt prefill 的全部真实 encoder 调用次数，用于内部一致性审计 |
+| `tokens_per_forward_pass` / `tpf` | API 返回 completion token 总数除以 decode NFE，与 SGLang 口径一致 |
 | `model_output_tokens_per_s` / `tps` | completion token 除以 CUDA 同步的模型生成时间；是参考 TPS |
 | `processed_rows` | 所有 forward 实际处理的 batch row 总数，暴露 fused batch 的额外计算 |
 | `processed_query_tokens` | 所有 forward 的 `batch × query length` 总和，不把 overlap 计算隐藏在 NFE 中 |
@@ -331,4 +332,4 @@ TPF 是本实验优先指标，但不能单独代表算力成本：fused forward
 | saved draft fraction of rounds | 13.1848% |
 | 实际 GPU / 端口 | GPU 1 / 43147 |
 
-验收脚本还检查了：输出 JSONL 为 164 行、请求 stats 为 164 条且全部 `ok=true`、`TPF=completion_tokens/physical_nfe`、Settings 为 `completed`、server 进程已退出、GPU 显存已释放、默认隐藏工作目录已删除且必要原始文件均已复制到 `artifacts/human-eval/`。
+该段为旧 smoke 的历史记录；当时使用含 prefill 的 TPF。当前重新运行时验收关系为 `TPF=completion_tokens/decode_forward_passes`，同时保留 `total_forward_passes/physical_nfe` 做总调用次数审计；其余输出、进程和产物检查不变。

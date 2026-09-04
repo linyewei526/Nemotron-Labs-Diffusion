@@ -84,16 +84,49 @@ def distribution(values: Iterable[Optional[float]]) -> dict[str, Optional[float]
     }
 
 
+def forward_pass_breakdown(row: dict[str, Any]) -> tuple[float, float, float]:
+    """Return decode, prefill and total NFE for new and legacy request rows."""
+    explicit_decode = as_float(row.get("decode_nfe"))
+    explicit_prefill = as_float(row.get("prefill_nfe"))
+    explicit_total = as_float(row.get("total_nfe"))
+
+    if explicit_decode is not None:
+        decode_nfe = max(explicit_decode, 0.0)
+        prefill_nfe = max(explicit_prefill or 0.0, 0.0)
+        total_nfe = max(
+            explicit_total
+            if explicit_total is not None
+            else decode_nfe + prefill_nfe,
+            0.0,
+        )
+        return decode_nfe, prefill_nfe, total_nfe
+
+    # Legacy native rows stored the HF remote-code NFE in ``nfe``.  Only
+    # LinearSpec included its prompt prefill in that number.
+    total_nfe = max(explicit_total or as_float(row.get("nfe")) or 0.0, 0.0)
+    mode = str(row.get("mode") or "")
+    prefill_nfe = (
+        max(explicit_prefill, 0.0)
+        if explicit_prefill is not None
+        else (1.0 if total_nfe > 0 and mode in {"linearspec_base", "linearspec_lora"} else 0.0)
+    )
+    return max(total_nfe - prefill_nfe, 0.0), prefill_nfe, total_nfe
+
+
 def summarize(rows: list[dict[str, Any]], wall_time_s: Optional[float]) -> dict[str, Any]:
     ok_rows = [row for row in rows if row.get("ok") is True]
     failed_rows = [row for row in rows if row.get("ok") is not True]
     prompt_tokens = sum(as_float(row.get("prompt_tokens")) or 0.0 for row in ok_rows)
     completion_tokens = sum(as_float(row.get("completion_tokens")) or 0.0 for row in ok_rows)
     raw_generated_tokens = sum(as_float(row.get("raw_generated_tokens")) or 0.0 for row in ok_rows)
-    total_nfe = sum(as_float(row.get("nfe")) or 0.0 for row in ok_rows)
+    nfe_breakdowns = [forward_pass_breakdown(row) for row in ok_rows]
+    decode_nfe = sum(item[0] for item in nfe_breakdowns)
+    prefill_nfe = sum(item[1] for item in nfe_breakdowns)
+    total_nfe = sum(item[2] for item in nfe_breakdowns)
     model_time_s = sum(as_float(row.get("model_time_s")) or 0.0 for row in ok_rows)
     sum_request_time_s = sum(as_float(row.get("request_time_s")) or 0.0 for row in ok_rows)
-    tpf = completion_tokens / total_nfe if total_nfe > 0 else None
+    tpf = completion_tokens / decode_nfe if decode_nfe > 0 else None
+    end_to_end_tpf = completion_tokens / total_nfe if total_nfe > 0 else None
 
     summary = {
         "request_count": len(ok_rows),
@@ -101,9 +134,16 @@ def summarize(rows: list[dict[str, Any]], wall_time_s: Optional[float]) -> dict[
         "prompt_tokens": round(prompt_tokens, 4),
         "completion_tokens": round(completion_tokens, 4),
         "raw_generated_tokens": round(raw_generated_tokens, 4),
-        "forward_passes": round(total_nfe, 4),
+        "forward_passes": round(decode_nfe, 4),
+        "decode_forward_passes": round(decode_nfe, 4),
+        "prefill_forward_passes": round(prefill_nfe, 4),
+        "total_forward_passes": round(total_nfe, 4),
         "tokens_per_forward_pass": rounded(tpf, 4),
+        "end_to_end_tokens_per_forward_pass": rounded(end_to_end_tpf, 4),
         "average_forward_passes_per_sample": rounded(
+            decode_nfe / len(ok_rows) if ok_rows else None, 4
+        ),
+        "average_total_forward_passes_per_sample": rounded(
             total_nfe / len(ok_rows) if ok_rows else None, 4
         ),
         "average_completion_tokens": rounded(
@@ -195,10 +235,12 @@ def main() -> int:
         "backend": "native_pytorch",
         "benchmark": args.benchmark,
         "decode": native,
+        "metric_schema_version": 2,
         "metric_notes": {
             "model_output_tokens_per_s": "completion tokens divided by synchronized native generation time; excludes prompt formatting/tokenization and NeMo scoring",
             "benchmark_wall_output_tokens_per_s": "completion tokens divided by the complete NeMo-Skills benchmark command wall time",
-            "tokens_per_forward_pass": "returned completion tokens divided by the NFE reported by the model remote code",
+            "tokens_per_forward_pass": "returned completion tokens divided by decode-only forward passes; prompt prefill is excluded to match SGLang",
+            "end_to_end_tokens_per_forward_pass": "returned completion tokens divided by total model-reported forward passes including LinearSpec prompt prefill",
             "top_p_applied": "false for current native NLD generation methods; top_p is accepted by the OpenAI API but the model methods expose temperature only",
             "top_k_applied": "false for current native NLD generation methods; top_k is accepted by the OpenAI API but is not forwarded to the model methods",
         },

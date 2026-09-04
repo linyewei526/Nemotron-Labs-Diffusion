@@ -1,0 +1,94 @@
+{
+  "accepted_confidence_abs_diff": {
+    "count": 186,
+    "max": 0.2076999545097351,
+    "mean": 0.005833274414462428
+  },
+  "core_exact_match": false,
+  "core_mismatch_count": 4,
+  "core_mismatch_field_counts": {
+    "emitted_tokens": 2,
+    "rejected_correct_token_rank": 2
+  },
+  "core_mismatches": [
+    {
+      "differences": {
+        "emitted_tokens": {
+          "left": 16,
+          "right": 15
+        }
+      },
+      "round_index": 14,
+      "sample_index": 0
+    },
+    {
+      "differences": {
+        "rejected_correct_token_rank": {
+          "left": 3,
+          "right": 2
+        }
+      },
+      "round_index": 9,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "rejected_correct_token_rank": {
+          "left": 2,
+          "right": 3
+        }
+      },
+      "round_index": 10,
+      "sample_index": 1
+    },
+    {
+      "differences": {
+        "emitted_tokens": {
+          "left": 2,
+          "right": 1
+        }
+      },
+      "round_index": 14,
+      "sample_index": 1
+    }
+  ],
+  "first_core_mismatch": {
+    "differences": {
+      "emitted_tokens": {
+        "left": 16,
+        "right": 15
+      }
+    },
+    "round_index": 14,
+    "sample_index": 0
+  },
+  "left": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/sglang_lora_eager/linearspec_confidence_20260831_174916/traces/raw_trace_gsm8k.jsonl",
+  "left_all_request_round_counts": [
+    4,
+    1,
+    1,
+    15,
+    15
+  ],
+  "left_compared_request_round_counts": [
+    15,
+    15
+  ],
+  "paired_rounds": 30,
+  "rejected_confidence_abs_diff": {
+    "count": 20,
+    "max": 0.08206486701965332,
+    "mean": 0.017057569324970247
+  },
+  "right": "/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/sglang_pytorch_diff/results/pytorch_lora/linearspec_confidence_20260831_175158/traces/raw_trace_gsm8k.jsonl",
+  "right_all_request_round_counts": [
+    15,
+    15
+  ],
+  "right_compared_request_round_counts": [
+    15,
+    15
+  ],
+  "same_request_count": true,
+  "same_round_counts": true
+}

@@ -314,9 +314,10 @@ EOS、最大 token 或 context 终止造成“没有下一轮”时，不把下�
 
 |字段|含义|
 |:---:|:---:|
-|`physical_nfe` / `forward_passes`|真实 encoder 调用次数；两行 fused batch 仍计一次|
-|`tokens_per_forward_pass` / `tpf`|返回 completion token 总数除以 physical NFE|
-|`average_forward_passes_per_sample` / `average_nfe`|每请求平均 physical NFE|
+|`forward_passes` / `decode_forward_passes`|decode 阶段真实 encoder 调用次数；排除 prompt prefill，两行 fused batch 仍计一次|
+|`total_forward_passes` / `physical_nfe`|包含 prompt prefill 的总 encoder 调用次数，用于一致性审计|
+|`tokens_per_forward_pass` / `tpf`|返回 completion token 总数除以 decode NFE，与 SGLang 口径一致|
+|`average_forward_passes_per_sample` / `average_nfe`|每请求平均 decode NFE|
 |`model_output_tokens_per_s` / `tps`|completion token 除以 CUDA 同步的模型生成时间|
 |`processed_rows`|全部 forward 处理的 batch row 总数|
 |`processed_query_tokens`|全部 forward 的 batch×query length 总和|

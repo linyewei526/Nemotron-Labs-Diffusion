@@ -288,7 +288,7 @@ def generate(result_dir: Path, b16_dir: Path, b32_dir: Path) -> str:
     )
     parts.extend(["\n## 2. TPF 对比", "", table(["数据集", "B16", "B32", "新法", "Δ16", "Δ32"], compare_rows)])
     append_defs(parts, [
-        "B16/B32：PyTorch+NeMo-Skills+greedy 的 block size 16/32 baseline TPF；例如 B16=5 表示每次物理 forward 平均返回 5 token。",
+        "B16/B32：PyTorch+NeMo-Skills+greedy 的 block size 16/32 baseline decode-only TPF；例如 B16=5 表示排除 prompt prefill 后，每次 decode forward 平均返回 5 token。",
         "新法：本方法 Completion tokens/physical NFE；融合双行仍计一次 NFE。",
         "Δ16/Δ32：新法 TPF 减对应 baseline；正数表示本方法更高。",
     ])
@@ -334,7 +334,7 @@ def generate(result_dir: Path, b16_dir: Path, b32_dir: Path) -> str:
     parts.extend(["\n## 4. 工作量", "", table(["数据集"] + [short for _, short in work_fields] + ["TPF"], work_rows)])
     append_defs(parts, [
         "请求/Tok：成功请求数与返回 completion token 总数；例如请求=2、Tok=400 表示两条请求共返回 400 token。",
-        "NFE/轮数：物理 encoder 调用数与逻辑 verify 轮数；每轮必有 verifier，Saved 只省普通 draft。",
+        "NFE/轮数：排除 prompt prefill 后的 decode encoder 调用数与逻辑 verify 轮数；每轮必有 verifier，Saved 只省普通 draft。",
         "Saved：下一轮实际消费完整 row 1、因此省掉普通 draft forward 的次数。",
         "Rows/QTok：所有 forward 处理的 batch row 数及 batch×query length，总量用于暴露融合双行的隐藏工作。",
     ])
