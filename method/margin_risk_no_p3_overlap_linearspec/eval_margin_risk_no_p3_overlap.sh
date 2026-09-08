@@ -1,5 +1,5 @@
 #!/bin/bash
-# Isolated margin-risk-guided overlap LinearSpec + NeMo-Skills evaluation.
+# Isolated fixed-margin-risk no-P3 overlap + NeMo-Skills evaluation.
 
 set -euo pipefail
 
@@ -12,11 +12,11 @@ SETTINGS_UPDATER="$METHOD_DIR/update_settings.py"
 REPORT_SCRIPT="$METHOD_DIR/report.py"
 
 DEFAULT_MODEL="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
-DEFAULT_OUTPUT_PATH="/data/home/wly/dLLM/NLD_results"
+DEFAULT_OUTPUT_PATH="/data/home/wly/dLLM/NLD_results/margin_risk_no_p3_overlap_results"
 DEFAULT_DATA_DIR="/data1/linyewei/datasets/NLD"
 DEFAULT_BASELINE_BLOCK16_DIR="/data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results/eval_20260804_120138"
 DEFAULT_BASELINE_BLOCK32_DIR="/data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results/eval_20260804_114935"
-DEFAULT_BENCHMARKS="gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime24:1,aime25:1,gpqa:1,mmlu:1,ifeval:1,livecodebench-cpp:1"
+DEFAULT_BENCHMARKS="gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1"
 DEFAULT_PYTHON="/data/home/wly/.conda/envs/nld_sglang/bin/python"
 [[ -x "$DEFAULT_PYTHON" ]] || DEFAULT_PYTHON="python"
 
@@ -25,13 +25,13 @@ usage() {
 Usage: $0 --mode MODE [options]
 
 Modes:
-  --mode overlap_base        Margin-risk-overlap LinearSpec without LoRA
-  --mode overlap_lora        Margin-risk-overlap LinearSpec with segmented draft LoRA
+  --mode overlap_base        Margin-risk no-P3 overlap LinearSpec without LoRA
+  --mode overlap_lora        Margin-risk no-P3 overlap LinearSpec with segmented draft LoRA
 
 Benchmark:
   --benchmarks LIST          Comma-separated benchmarks; mt-bench/alpaca-eval use dedicated runners
   --tokens N                 Maximum returned completion tokens (default: 8192)
-  --temperature V            Must be 0 for this first deterministic experiment
+  --temperature V            Must be 0 for this deterministic experiment
   --top-p V                  OpenAI/NeMo parameter recorded for parity; native model methods do not apply top-p (default: 0.95)
   --num-chunks N             NeMo-Skills client-side chunk count (default: client concurrency)
   --client-concurrency N     Concurrent client requests; GPU generation remains serialized (default: 1)
@@ -52,7 +52,7 @@ Judge-based benchmarks (Arena-Hard, MT-Bench, and AlpacaEval):
   --alpaca-eval-max-tokens N Candidate completion budget for AlpacaEval (default: 2048)
   --skip-judge-api-key-check Skip the OPENAI_API_KEY preflight check for downstream-injected credentials
 
-Margin-risk-overlap decoding:
+Margin-risk no-P3 overlap decoding:
   --model PATH               Local/HF model (default: $DEFAULT_MODEL)
   --served-model-name NAME   OpenAI API model label
   --gpu-device ID|auto       Physical GPU or automatic selection (default: auto)
@@ -65,7 +65,7 @@ Margin-risk-overlap decoding:
   --block-length N           Draft/verify block length (default: 16)
   --block-size N             Alias for --block-length
   --threshold V              Draft unmask threshold; currently must be 0
-  --margin-risk-threshold V  First strict margin-risk crossing (default: 0.5)
+  --margin-risk-threshold V  Strict risk crossing threshold (default: 0.5)
   --context-length N         Reject requests exceeding this prompt+completion length (default: tokens+2048)
   --lora-path DIR            LinearSpec LoRA (default: <model>/linear_spec_lora)
   --max-thinking-tokens N    Force </think> after this generated-token budget
@@ -93,7 +93,7 @@ EOF
 MODE=""
 BENCHMARKS="$DEFAULT_BENCHMARKS"
 MODEL="$DEFAULT_MODEL"
-SERVED_MODEL_NAME="nemotron-labs-diffusion-8b-margin-risk-overlap"
+SERVED_MODEL_NAME="nemotron-labs-diffusion-8b-margin-risk-no-p3-overlap"
 TOKENS="8192"
 TEMPERATURE="0"
 TOP_P="0.95"
@@ -196,8 +196,8 @@ done
 
 [[ -n "$MODE" ]] || { echo "ERROR: --mode is required" >&2; usage; exit 1; }
 case "$MODE" in
-    overlap_base|margin_risk_overlap_base) MODE="overlap_base" ;;
-    overlap_lora|margin_risk_overlap_lora) MODE="overlap_lora" ;;
+    overlap_base|margin_risk_no_p3_overlap_base) MODE="overlap_base" ;;
+    overlap_lora|margin_risk_no_p3_overlap_lora) MODE="overlap_lora" ;;
     *) echo "ERROR: unknown --mode $MODE" >&2; exit 1 ;;
 esac
 
@@ -327,7 +327,7 @@ try:
 except (TypeError, ValueError):
     raise SystemExit("--threshold, --margin-risk-threshold and --gpu-min-free-gb must be numeric")
 if draft_threshold != 0.0:
-    raise SystemExit("the first overlap experiment requires --threshold 0")
+    raise SystemExit("the no-P3 overlap experiment requires --threshold 0")
 if not math.isfinite(margin_risk_threshold) or not 0 <= margin_risk_threshold <= 1:
     raise SystemExit("--margin-risk-threshold must be finite and in [0,1]")
 if not math.isfinite(min_free) or min_free < 0:
@@ -352,7 +352,7 @@ try:
 except (TypeError, ValueError):
     raise SystemExit("--temperature and --top-p must be numeric")
 if temperature != 0:
-    raise SystemExit("the first overlap experiment requires --temperature 0")
+    raise SystemExit("the no-P3 overlap experiment requires --temperature 0")
 if not math.isfinite(top_p) or not 0 <= top_p <= 1:
     raise SystemExit("--top-p must be between 0 and 1")
 PY
@@ -404,7 +404,7 @@ BASELINE_BLOCK16_DIR="$(realpath -m "$BASELINE_BLOCK16_DIR")"
 BASELINE_BLOCK32_DIR="$(realpath -m "$BASELINE_BLOCK32_DIR")"
 NEMO_SKILLS_DATA_DIR_ARG="$(realpath -m "$NEMO_SKILLS_DATA_DIR_ARG")"
 GOOGLE_RESEARCH_DIR="$(realpath -m "$GOOGLE_RESEARCH_DIR")"
-RUN_NAME="margin_risk_overlap_linearspec_$(date +%Y%m%d_%H%M%S)"
+RUN_NAME="margin_risk_no_p3_overlap_$(date +%Y%m%d_%H%M%S)"
 FINAL_JOB_DIR="$OUTPUT_PATH/$RUN_NAME"
 if [[ -e "$FINAL_JOB_DIR" ]]; then
     suffix=1
@@ -416,7 +416,7 @@ EVAL_OUTPUT_DIR="$INTERNAL_JOB_DIR/results"
 RUNTIME_DIR="$INTERNAL_JOB_DIR/pytorch_runtime"
 
 echo "================================================================"
-echo " Margin-risk-overlap LinearSpec + NeMo-Skills eval"
+echo " Margin-risk-no-P3-overlap LinearSpec + NeMo-Skills eval"
 echo "================================================================"
 echo " Mode:                 $MODE"
 echo " Model:                $MODEL"
@@ -480,11 +480,11 @@ def number(name): return float(env(name)) if env(name) else None
 payload = {
     "created_at": datetime.now().astimezone().isoformat(),
     "status": "initialized",
-    "experiment": "margin-risk-guided full-block overlap LinearSpec",
-    "entrypoint": "method/margin_risk_overlap_linearspec/eval_margin_risk_overlap.sh",
+    "experiment": "fixed margin-risk no-P3 overlap: C0=new; C1=P1+new; C2=P1+P2+new; C3+=P1+P2",
+    "entrypoint": "method/margin_risk_no_p3_overlap_linearspec/eval_margin_risk_no_p3_overlap.sh",
     "original_args": sys.argv[2:],
-    "command": "bash method/margin_risk_overlap_linearspec/eval_margin_risk_overlap.sh " + " ".join(shlex.quote(x) for x in sys.argv[2:]),
-    "backend": "native_pytorch_margin_risk_overlap",
+    "command": "bash method/margin_risk_no_p3_overlap_linearspec/eval_margin_risk_no_p3_overlap.sh " + " ".join(shlex.quote(x) for x in sys.argv[2:]),
+    "backend": "native_pytorch_margin_risk_no_p3_overlap",
     "benchmark": {
         "benchmarks": env("BENCHMARKS"), "tokens": integer("TOKENS"),
         "temperature": number("TEMPERATURE"), "top_p": number("TOP_P"),
@@ -505,16 +505,22 @@ payload = {
         "gpu_wait_seconds": integer("GPU_WAIT"),
         "dtype": env("DTYPE"), "block_length": integer("BLOCK_LENGTH"),
         "draft_threshold": number("THRESHOLD"), "margin_risk_threshold": number("MARGIN_RISK_THRESHOLD"),
-        "locator_rule": "leftmost p in [1,L-1] with margin_risk > threshold; margin_risk=1-(P_top1-P_top2) after MASK exclusion",
+        "locator_rule": "first three left-to-right positions p in [1,L-1] with margin_risk > threshold; margin_risk=1-(P_top1-P_top2) after MASK exclusion",
+        "max_total_rows": 4, "max_candidate_rows": 3,
+        "candidate_allocation_rule": "C0: continuation; C1: P1-rank2 plus continuation; C2: P1-rank2 plus P2-rank2 plus continuation; C3+: P1-rank2 plus P2-rank2, never execute P3",
+        "continuation_rule": "when total strict crossings <=2, append current full draft plus one all-MASK block; reuse only when full verify bonus equals continuation token 0",
         "context_length": integer("CONTEXT_LENGTH"), "lora_path": env("LORA_PATH"),
         "enable_thinking": boolean("ENABLE_THINKING"), "max_thinking_tokens": integer("MAX_THINKING"),
         "requested_port": integer("PORT"), "model_execution_serialized": True,
         "oom_policy": "return empty placeholder and exclude request from efficiency aggregation" if boolean("EFFICIENCY_ONLY") else "fail request and dataset",
         "top_p_applied_by_native_model": False,
         "full_prospective_draft": True,
-        "attention": "causal verifier row + causal-prefix/bidirectional-suffix prospective row",
+        "recursive_prospective_analysis": "every generated prospective block is immediately analyzed with the same margin-risk policy for its possible next verify",
+        "attention": "one causal verifier row plus up to three causal-prefix/bidirectional-suffix prospective rows, densely padded to common Q",
         "lora_routing": "segmented per token; verifier off, prospective suffix on",
-        "second_candidate_excludes": ["MASK", "EOS", "thinking-budget forcing"],
+        "alternative_token_rank_semantics": "rank2 among valid alternatives after excluding draft original token, MASK and EOS; the draft original token is treated as rank1; P3 rank2 is computed only for counterfactual audit",
+        "alternative_token_excludes": ["draft original token", "MASK", "EOS"],
+        "branch_boundary_guards": ["remaining token budget", "context limit", "thinking budget"],
         "acceptance_authority": "causal AR verifier only",
         "nfe_semantics": "physical model encoder forward calls",
     },
@@ -569,7 +575,7 @@ export EVAL_PYTHON="$EVAL_PYTHON"
 export NEMO_SKILLS_DATA_DIR="$NEMO_SKILLS_DATA_DIR_ARG"
 export NLD_GOOGLE_RESEARCH_DIR="$GOOGLE_RESEARCH_DIR"
 export SEQ_EVAL_BENCHMARK="$BENCHMARKS"
-export SEQ_EVAL_EXPNAME="margin_risk_overlap"
+export SEQ_EVAL_EXPNAME="margin_risk_no_p3_overlap"
 export SEQ_EVAL_OUTPUT_DIR="$EVAL_OUTPUT_DIR"
 export SEQ_EVAL_TOKENS_TO_GENERATE="$TOKENS"
 export SEQ_EVAL_TEMPERATURE="$TEMPERATURE"
@@ -595,7 +601,7 @@ bash "$PIPELINE" || PIPELINE_STATUS=$?
 if [[ "$PIPELINE_STATUS" != "0" ]]; then
     "$PYTORCH_PYTHON" "$SETTINGS_UPDATER" "$FINAL_JOB_DIR/Settings.json" --status failed || true
     "$PYTORCH_PYTHON" "$REPORT_SCRIPT" --result-dir "$FINAL_JOB_DIR" --baseline-block16-dir "$BASELINE_BLOCK16_DIR" --baseline-block32-dir "$BASELINE_BLOCK32_DIR" || true
-    echo "ERROR: margin-risk-overlap pipeline failed; internal work kept: $INTERNAL_JOB_DIR" >&2
+    echo "ERROR: margin-risk-no-p3-overlap pipeline failed; internal work kept: $INTERNAL_JOB_DIR" >&2
     exit "$PIPELINE_STATUS"
 fi
 
@@ -627,7 +633,7 @@ else
     "$PYTORCH_PYTHON" "$SETTINGS_UPDATER" "$FINAL_JOB_DIR/Settings.json" --status completed_with_errors || true
 fi
 "$PYTORCH_PYTHON" "$REPORT_SCRIPT" --result-dir "$FINAL_JOB_DIR" --baseline-block16-dir "$BASELINE_BLOCK16_DIR" --baseline-block32-dir "$BASELINE_BLOCK32_DIR" || true
-echo "Completed margin-risk-overlap LinearSpec + NeMo-Skills evaluation."
+echo "Completed margin-risk-no-p3-overlap LinearSpec + NeMo-Skills evaluation."
 echo "Final output: $FINAL_JOB_DIR"
 if [[ "$ANY_ERROR" != "0" ]]; then
     echo "One or more benchmarks failed; inspect error_<benchmark>.json and the retained runtime directory." >&2

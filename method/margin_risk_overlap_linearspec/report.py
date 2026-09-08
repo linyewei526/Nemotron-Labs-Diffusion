@@ -18,7 +18,7 @@ DEFAULT_BASELINE_16 = Path(
 DEFAULT_BASELINE_32 = Path(
     "/data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results/eval_20260804_114935"
 )
-DATASETS = (
+DEFAULT_REPORT_DATASETS = (
     "gsm8k",
     "human-eval",
     "mbpp",
@@ -29,6 +29,7 @@ DATASETS = (
     "ifeval",
     "livecodebench-cpp",
 )
+REPORT_EXCLUDED_DATASETS = frozenset({"aime24"})
 OUTCOME_STATES = (
     "before_candidate_error",
     "candidate_fixed_by_alternative",
@@ -111,10 +112,52 @@ def metric_path(root: Path, dataset: str) -> Path:
     return root / f"metrics_{dataset}.json"
 
 
-def load_metrics(root: Path) -> dict[str, dict[str, Any]]:
+def report_datasets(settings: dict[str, Any]) -> tuple[str, ...]:
+    """Return the ordered report scope recorded by the evaluation entrypoint.
+
+    AIME24 remains excluded by this experiment's reporting convention.  Old
+    result directories without a recorded benchmark list retain the original
+    nine-dataset scope so rebuilding an existing report stays compatible.
+    """
+
+    benchmark = settings.get("benchmark")
+    if not isinstance(benchmark, dict) or "benchmarks" not in benchmark:
+        return DEFAULT_REPORT_DATASETS
+    raw = benchmark.get("benchmarks")
+    if isinstance(raw, str):
+        specs = raw.split(",")
+    elif isinstance(raw, (list, tuple)):
+        specs = [str(item) for item in raw]
+    else:
+        return DEFAULT_REPORT_DATASETS
+
+    datasets: list[str] = []
+    seen: set[str] = set()
+    for spec in specs:
+        name = spec.strip().split(":", 1)[0].strip()
+        if not name or name in REPORT_EXCLUDED_DATASETS or name in seen:
+            continue
+        # run_pipeline.sh uses the same benchmark name as the compact metrics
+        # filename.  Refuse path-like names when reading a report directory.
+        if any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-" for character in name):
+            continue
+        seen.add(name)
+        datasets.append(name)
+    return tuple(datasets)
+
+
+def dataset_scope_label(count: int) -> str:
+    chinese = {
+        0: "零", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五",
+        6: "六", 7: "七", 8: "八", 9: "九", 10: "十",
+    }
+    return f"{chinese.get(count, count)}数据集"
+
+
+def load_metrics(root: Path, datasets: Iterable[str]) -> dict[str, dict[str, Any]]:
     return {
         dataset: payload
-        for dataset in DATASETS
+        for dataset in datasets
         if (payload := read_json(metric_path(root, dataset))) is not None
     }
 
@@ -170,19 +213,32 @@ def config_warnings(new: dict[str, Any], b16: dict[str, Any], b32: dict[str, Any
 
 
 def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
-    new_metrics = load_metrics(result_dir)
-    b16_metrics = load_metrics(baseline16)
-    b32_metrics = load_metrics(baseline32)
-    completed = [dataset for dataset in DATASETS if dataset in new_metrics]
+    settings = read_json(result_dir / "Settings.json") or {}
+    datasets = report_datasets(settings)
+    dataset_total = len(datasets)
+    scope_label = dataset_scope_label(dataset_total)
+    new_metrics = load_metrics(result_dir, datasets)
+    b16_metrics = load_metrics(baseline16, datasets)
+    b32_metrics = load_metrics(baseline32, datasets)
+    completed = [dataset for dataset in datasets if dataset in new_metrics]
+    progress_label = f"{len(completed)}/{dataset_total}"
     new_cfg = config_summary(result_dir)
     b16_cfg = config_summary(baseline16)
     b32_cfg = config_summary(baseline32)
-    settings = read_json(result_dir / "Settings.json") or {}
     status = settings.get("status", "initialized")
+    margin_risk_text = fmt(new_cfg["margin_risk"])
+    block_text = fmt(new_cfg["block"])
+    title_suffix = ""
+    if margin_risk_text != "—":
+        title_suffix += f"={margin_risk_text}"
+    if block_text != "—":
+        title_suffix += f"，BS={block_text}"
     lines = [
-        "# 固定 margin-risk=0.5 重起草实验报告",
+        f"# 固定 margin-risk{title_suffix} 重起草实验报告",
         "",
-        f"> 状态：`{status}`；非 AIME24 数据集完成 `{len(completed)}/9`：`{', '.join(completed) if completed else '尚无'}`。本文件由每个数据集完成后的增量步骤重写。AIME24 即使运行也不进入本报告主表和等权平均。",
+        f"> 状态：`{status}`；本次主报告完成 `{progress_label}`：`{', '.join(completed) if completed else '尚无'}`。本文件由每个数据集完成后的增量步骤重写。AIME24 即使被请求也不进入本报告主表和等权平均。",
+        "",
+        f"> 本次主报告范围（{scope_label}）：`{', '.join(datasets) if datasets else '空'}`。范围和顺序来自 `Settings.json` 中实际传入的 `--benchmarks`；MMLU 仅在显式传入时参与。",
         "",
         "## 1. 配置与对照来源",
         "",
@@ -233,7 +289,7 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
                 comparison_values[key].append(parsed)
         comparison_rows.append([dataset, fmt(values["att"]), fmt(values["ok"]), fmt(values["fail"]), fmt(values["oom"]), pct(values["cov"]), fmt(values["nt"]), fmt(values["bt16"]), fmt(values["bt32"]), fmt(values["nn"]), fmt(values["bn16"]), fmt(values["bn32"]), fmt(values["np"]), fmt(values["bp16"]), fmt(values["bp32"])])
     if completed:
-        comparison_rows.append([f"等权均值({len(completed)}/9)", *[fmt(mean(comparison_values[key])) for key in ("att", "ok", "fail", "oom")], pct(mean(comparison_values["cov"])), *[fmt(mean(comparison_values[key])) for key in ("nt", "bt16", "bt32", "nn", "bn16", "bn32", "np", "bp16", "bp32")]])
+        comparison_rows.append([f"等权均值({progress_label})", *[fmt(mean(comparison_values[key])) for key in ("att", "ok", "fail", "oom")], pct(mean(comparison_values["cov"])), *[fmt(mean(comparison_values[key])) for key in ("nt", "bt16", "bt32", "nn", "bn16", "bn32", "np", "bp16", "bp32")]])
         lines.append(table(["数据集", "Att", "OK", "Fail", "OOM", "Cov", "新TPF", "B16TPF", "B32TPF", "新NFE", "B16NFE", "B32NFE", "新TPS", "B16TPS", "B32TPS"], comparison_rows))
     else:
         lines.append("尚无已完成的新方法数据集；表格会在首个数据集完成后出现。")
@@ -251,7 +307,7 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
         funnel_rows.append([dataset] + [fmt(values.get(key)) for key, _ in FUNNEL_FIELDS])
     if completed:
         funnel_rows.append(["总计"] + [fmt(sum(integer(overlap(new_metrics[d]).get(key)) for d in completed)) for key, _ in FUNNEL_FIELDS])
-        funnel_rows.append([f"等权均次({len(completed)}/9)"] + [fmt(mean(integer(overlap(new_metrics[d]).get(key)) for d in completed)) for key, _ in FUNNEL_FIELDS])
+        funnel_rows.append([f"等权均次({progress_label})"] + [fmt(mean(integer(overlap(new_metrics[d]).get(key)) for d in completed)) for key, _ in FUNNEL_FIELDS])
         lines.append(table(["数据集"] + [label for _, label in FUNNEL_FIELDS], funnel_rows))
     else:
         lines.append("尚无漏斗统计。")
@@ -282,8 +338,8 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
         row.append("是" if values.get("outcome_partition_valid") is True else "否")
         state_count_rows.append(row)
     if completed:
-        state_count_rows.append(["九集总计(当前)"] + [str(totals[state]) for state in OUTCOME_STATES] + ["—"])
-        state_count_rows.append([f"等权均值({len(completed)}/9)"] + [f"{fmt(mean(counts_by_state[state]))}/{pct(mean(macro_shares[state]))}" for state in OUTCOME_STATES] + ["—"])
+        state_count_rows.append([f"{scope_label}总计(当前)"] + [str(totals[state]) for state in OUTCOME_STATES] + ["—"])
+        state_count_rows.append([f"等权均值({progress_label})"] + [f"{fmt(mean(counts_by_state[state]))}/{pct(mean(macro_shares[state]))}" for state in OUTCOME_STATES] + ["—"])
         lines.append(table(["数据集", "预测前", "B修正对", "B仍错", "预测后", "整块+bonus", "分区校验"], state_count_rows))
     else:
         lines.append("尚无状态统计。")
@@ -311,7 +367,7 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
     if completed:
         for state in OUTCOME_STATES:
             values = macro_by_state[state]
-            transition_rows.append([f"等权均值({len(completed)}/9)", STATE_ZH[state], fmt(mean(counts_by_state[state])), pct(mean(values["share_of_attempts"])), fmt(mean(values["current_accept_avg"])), fmt(mean(integer((overlap(new_metrics[d]).get("outcome_states") or {}).get(state, {}).get("next_count")) for d in completed)), pct(mean(values["next_coverage"])), fmt(mean(values["paired_current_accept_avg"])), fmt(mean(values["next_accept_avg"])), fmt(mean(values["next_minus_current_avg"]))])
+            transition_rows.append([f"等权均值({progress_label})", STATE_ZH[state], fmt(mean(counts_by_state[state])), pct(mean(values["share_of_attempts"])), fmt(mean(values["current_accept_avg"])), fmt(mean(integer((overlap(new_metrics[d]).get("outcome_states") or {}).get(state, {}).get("next_count")) for d in completed)), pct(mean(values["next_coverage"])), fmt(mean(values["paired_current_accept_avg"])), fmt(mean(values["next_accept_avg"])), fmt(mean(values["next_minus_current_avg"]))])
         lines.append(table(["数据集", "状态", "Cnt", "占比", "本轮均", "NextN", "NextCov", "配对本轮", "下轮均", "差值"], transition_rows))
     else:
         lines.append("尚无跨轮统计。")
@@ -320,8 +376,8 @@ def render(result_dir: Path, baseline16: Path, baseline32: Path) -> str:
         "",
         "## 6. 统计口径与完整性",
         "",
-        "- 九数据集等权：所有比例、均值先在每个数据集内部计算，再对已完成的非 AIME24 数据集做算术平均；不会按样本数或轮次数加权。最终应显示 `9/9`。",
-        "- `九集总计` 仅用于审计绝对事件数，不作为全局比例的分母；因此 MMLU 的大量样本不会覆盖小数据集。",
+        f"- {scope_label}等权：所有比例、均值先在每个数据集内部计算，再对本次已完成的主报告数据集做算术平均；不会按样本数或轮次数加权。全部完成时应显示 `{dataset_total}/{dataset_total}`。",
+        f"- `{scope_label}总计` 仅用于审计本次范围内的绝对事件数，不作为全局比例的分母；样本较多的数据集不会覆盖样本较少的数据集。",
         "- 五状态只覆盖实际发起融合 overlap 的轮次；未找到候选或因边界跳过的轮次在漏斗表中另列。",
         "- 下一轮统计是同一请求的相邻 verify 描述性转移，不把无下一轮的终止状态补成 0，也不单独构成因果结论。",
         "- 某状态在某数据集没有实例时，其占比按 0 进入等权平均；该状态的接收均值和 NextCov 没有定义，因此只在有定义的数据集间平均。",

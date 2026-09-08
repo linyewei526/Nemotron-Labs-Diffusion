@@ -51,6 +51,16 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(tuple(mask.shape), (2, 1, 5, 8))
         self.assertTrue(mask[1, 0, 1].all().item())
 
+    def test_hybrid_mask_supports_block_size_32(self) -> None:
+        mask = build_hybrid_attention_mask(
+            cache_length=3,
+            block_length=32,
+            candidate_position=17,
+            device=torch.device("cpu"),
+        )
+        self.assertEqual(tuple(mask.shape), (2, 1, 49, 52))
+        self.assertTrue(mask[1, 0, 17].all().item())
+
     def test_segmented_lora_routes_only_selected_tokens(self) -> None:
         base = nn.Linear(2, 2, bias=False)
         with torch.no_grad():

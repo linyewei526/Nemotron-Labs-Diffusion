@@ -4,7 +4,7 @@
 > 新代码目录：`method/margin_risk_overlap_linearspec/`  
 > 默认结果根目录：`/data/home/wly/dLLM/NLD_results/`  
 > 正式策略：固定 `margin_risk_threshold=0.5`，greedy，draft threshold 为 0  
-> 主报告范围：除 AIME24 外的九个数据集，数据集等权宏平均
+> 主报告范围：由本次 `--benchmarks` 动态确定，AIME24 固定排除，其余实际传入数据集做等权宏平均
 > 默认评测口径：只以效率数据是否可用作为完成标准，不报告 accuracy
 
 ## 1. 实验目标与隔离边界
@@ -85,7 +85,7 @@ margin_risk > margin_risk_threshold
 
 `Settings.json` 初始状态是 `initialized`，记录原始命令、解析后的全部参数、固定 margin-risk 定义、模型/LoRA、GPU、显存预留、端口、数据目录、两个 baseline 路径和运行目录。server 就绪后写入实际端口；最终状态为 `completed`、`completed_with_errors` 或 `failed`。
 
-每完成一个数据集，程序会保存 `metrics_<dataset>.json` 和 `artifacts/<dataset>/`，然后原子重写根目录的 `report.md`。因此无需等待九个数据集全部完成即可查看已完成部分。AIME24 即使被运行，也不会进入主报告或宏平均。
+每完成一个数据集，程序会保存 `metrics_<dataset>.json` 和 `artifacts/<dataset>/`，然后原子重写根目录的 `report.md`。因此无需等待全部数据集完成即可查看已完成部分。报告范围、数据集顺序和完成分母从本次 `Settings.json` 记录的 `--benchmarks` 动态读取；AIME24 即使被运行，也不会进入主报告或宏平均，MMLU 则仅在命令显式传入时参与。
 
 正式完成后的紧凑结构为：
 
@@ -304,9 +304,9 @@ EOS、最大 token 或 context 终止造成“没有下一轮”时，不把下�
 3. 候选发现、实际尝试、B 命中、可复用、真实复用和跳过原因漏斗；
 4. 五状态的次数、占实际尝试比例和分区校验；
 5. 五状态当前轮与下一轮 verify 接收长度、配对覆盖率和变化量；
-6. 九数据集总计和九数据集等权宏平均。
+6. 本次主报告范围的数据集总计和数据集等权宏平均。
 
-等权宏平均先在每个数据集内部算比例或均值，再对九个数据集做算术平均。绝对事件数另列总计，并同时给出每数据集平均次数。不会把所有 request/round 直接拼接后求一个 micro 指标，因此 MMLU 不会因样本多而盖过 AIME25 等小数据集。运行未结束时宏平均会标为 `已完成数/9`，最终应为 `9/9`。
+等权宏平均先在每个数据集内部算比例或均值，再对本次主报告范围内已完成的数据集做算术平均。绝对事件数另列总计，并同时给出每数据集平均次数。不会把所有 request/round 直接拼接后求一个 micro 指标，因此样本多的数据集不会盖过小数据集。运行未结束时宏平均显示 `已完成数/本次数据集数`；例如八集运行中完成三集时显示 `3/8`，全部完成后显示 `8/8`。
 
 报告不展示任何 accuracy 列。NeMo 即使生成了评分文件，本报告也不使用；scorer 没完成时，metrics 由成功 request stats 补建。效率表中只有 `OK` 请求参与均值，`Fail/OOM` 只用于覆盖率披露。
 
@@ -355,3 +355,17 @@ python -m py_compile method/margin_risk_overlap_linearspec/*.py method/margin_ri
 ```bash
 CUDA_VISIBLE_DEVICES=3 /data/home/wly/.conda/envs/nld_sglang/bin/python method/margin_risk_overlap_linearspec/tests/smoke_fused_p1.py --model /data1/linyewei/models/Nemotron-Labs-Diffusion-8B --lora-path /data1/linyewei/models/Nemotron-Labs-Diffusion-8B/linear_spec_lora --block-size 16 --dtype bfloat16
 ```
+
+## 10. 八数据集全样本、block size=32
+
+这一设置排除 AIME24 和 MMLU，完整运行 `human-eval、gsm8k、mbpp、math-500、aime25、gpqa、ifeval、livecodebench-cpp` 八个数据集。命令不传 `--max-samples` 或 `--quick-test`，所以不是子集测试；`human-eval:1`、`mbpp:1` 中的 `:1` 表示 pass@1，不表示只取一个样本。默认 `--efficiency-only` 只把准确率排除出完成条件，不会减少需要生成的样本。
+
+正式单行命令：
+
+```bash
+bash method/margin_risk_overlap_linearspec/eval_margin_risk_overlap.sh --mode overlap_lora --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --tokens 8192 --context-length 10240 --block-size 32 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 0 --gpu-memory-reserve-gb 40 --efficiency-only --output-path /data/home/wly/dLLM/NLD_results/margin_risk_overlap_linearspec
+```
+
+也可以把 `--gpu-device auto` 改成 `--gpu-device ID` 指定一张物理 GPU。L32 的普通 draft、verify 和融合 prospective block 都会使用长度 32；融合 forward 的 query 和中间张量大于 L16，因此显存需求也更高。默认效率模式遇到单请求 CUDA OOM 会跳过该请求并在报告中降低 `Cov`；只有八个数据集均显示完成且各数据集 `Cov=100%` 时，才能把结果解释为“八集全部样本完整效率结果”。
+
+本次 `report.md` 会从 `Settings.json` 自动读取上述八集和 `BS=32`：初始化显示 `0/8`，逐集更新为 `1/8`、`2/8` 等，最终显示 `8/8`；所有“等权均值”和“数据集总计”只覆盖这八集。报告仍同时列出既有 B16/B32 greedy baseline，其中 B32 是相同 block size 的直接基线，B16 用于观察相对较短 block 的差异。

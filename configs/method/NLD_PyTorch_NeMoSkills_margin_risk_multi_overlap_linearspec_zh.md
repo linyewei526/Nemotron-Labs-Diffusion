@@ -189,7 +189,7 @@ bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.
 MMLU 明确放在最后；该命令不运行 AIME24。报告在每个数据集完成后增量刷新，最终宏平均为九数据集等权。
 
 ```bash
-bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 1 --gpu-memory-reserve-gb 0 --require-accuracy --output-path /data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results
+bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 0 --gpu-memory-reserve-gb 40 --require-accuracy --output-path /data/home/wly/dLLM/NLD_results/margin_risk_multi_overlap_results
 ```
 加 --require-accuracy：才恢复原来 pipeline 的严格行为——请求 OOM 或评分失败都会让数据集失败，并要求 accuracy/scorer 正常完成。
 
@@ -228,7 +228,7 @@ bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.
 ### 4.8 预留显存
 
 ```bash
-bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks gsm8k:1 --tokens 8192 --block-size 16 --margin-risk-threshold 0.5 --gpu-device 3 --gpu-memory-reserve-gb 20
+bash method/margin_risk_multi_overlap_linearspec/eval_margin_risk_multi_overlap.sh --mode overlap_lora --benchmarks gsm8k:1 --tokens 8192 --block-size 16 --margin-risk-threshold 0.5 --gpu-device 0 --gpu-memory-reserve-gb 20
 ```
 
 `--gpu-memory-reserve-gb` 会在模型加载前由独立进程真实占用指定显存，用于模拟受限环境；它不是“替模型保留可用空间”。本实验最多四行，显存需求明显高于单行 baseline 和两行 overlap。

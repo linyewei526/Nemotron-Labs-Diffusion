@@ -14,6 +14,7 @@ from method.margin_risk_overlap_linearspec.merge_metrics import main, summarize
 from method.margin_risk_overlap_linearspec.report import (
     DEFAULT_BASELINE_16,
     DEFAULT_BASELINE_32,
+    report_datasets,
     render,
 )
 from method.margin_risk_overlap_linearspec.server import (
@@ -193,6 +194,82 @@ class MetricsAndReportTests(unittest.TestCase):
         self.assertIn("尚无已完成", content)
         self.assertIn("AIME24", content)
         self.assertIn("九数据集等权", content)
+
+    def test_report_scope_comes_from_settings_and_excludes_aime24(self) -> None:
+        settings = {
+            "benchmark": {
+                "benchmarks": "gsm8k:1,aime24:1,mbpp:1,gsm8k:2,mmlu:1"
+            }
+        }
+        self.assertEqual(report_datasets(settings), ("gsm8k", "mbpp", "mmlu"))
+
+    def test_eight_dataset_block32_report_is_dynamic_and_complete(self) -> None:
+        datasets = (
+            "human-eval",
+            "gsm8k",
+            "mbpp",
+            "math-500",
+            "aime25",
+            "gpqa",
+            "ifeval",
+            "livecodebench-cpp",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "Settings.json").write_text(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "benchmark": {
+                            "benchmarks": ",".join(f"{name}:1" for name in datasets),
+                            "tokens": 8192,
+                            "temperature": 0,
+                        },
+                        "pytorch": {
+                            "mode": "overlap_lora",
+                            "block_length": 32,
+                            "margin_risk_threshold": 0.5,
+                            "context_length": 10240,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            initial = render(root, DEFAULT_BASELINE_16, DEFAULT_BASELINE_32)
+            self.assertIn("本次主报告完成 `0/8`", initial)
+            self.assertIn("本次主报告范围（八数据集）", initial)
+            self.assertIn("margin-risk=0.5，BS=32", initial)
+            for dataset in datasets:
+                (root / f"metrics_{dataset}.json").write_text(
+                    json.dumps(
+                        {
+                            "pytorch_margin_risk_overlap": {
+                                "decode": {
+                                    "attempted_request_count": 1,
+                                    "request_count": 1,
+                                    "failed_request_count": 0,
+                                    "oom_skipped_request_count": 0,
+                                    "successful_request_rate": 1.0,
+                                    "tokens_per_forward_pass": 4.0,
+                                    "average_forward_passes_per_sample": 2.0,
+                                    "model_output_tokens_per_s": 20.0,
+                                    "overlap": {},
+                                }
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            content = render(root, DEFAULT_BASELINE_16, DEFAULT_BASELINE_32)
+            self.assertIn("margin-risk=0.5，BS=32", content)
+            self.assertIn("本次主报告完成 `8/8`", content)
+            self.assertIn("本次主报告范围（八数据集）", content)
+            self.assertIn("等权均值(8/8)", content)
+            self.assertIn("八数据集总计(当前)", content)
+            self.assertIn("|新方法|completed|overlap_lora|32|0.5|", content)
+            self.assertNotIn("|mmlu|", content)
+            self.assertNotIn("9/9", content)
 
     def test_report_uses_coverage_and_omits_accuracy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
