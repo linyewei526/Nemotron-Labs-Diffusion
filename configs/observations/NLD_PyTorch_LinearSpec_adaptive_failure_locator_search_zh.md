@@ -363,7 +363,7 @@ bash observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.
 
 ### GPU、端口和并发
 
-- `--gpu-device ID|auto`：指定一张物理GPU或自动选择；原生8B入口每次只使用一张卡。
+- `--gpu-device ID|auto`：指定一张物理GPU或自动选择；原生8B/14B入口每次只使用一张卡。
 - `--gpu-candidates`：auto时允许候选ID列表或all。
 - `--gpu-min-free-gb`：auto候选最低空闲显存；满足后优先算力利用率低、显存利用率低、空闲显存高者。
 - `--gpu-wait-timeout-s/--gpu-poll-interval-s`：无合格GPU时等待总时长和轮询间隔；timeout 0表示立即失败。
@@ -398,3 +398,17 @@ bash observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.
 - position 1、cold-start、history-ready和边界敏感性有单独统计；
 - 任务accuracy只作生成质量审计，不与定位F1混淆；
 - 不从时间、吞吐或显存推导本观察阶段的算法结论。
+
+## 13. NLD-14B八数据集首错定位策略检索
+
+入口新增 `--model-size 8b|14b`。默认仍为 `8b`；选择 `14b` 后会自动使用 `/data1/linyewei/models/Nemotron-Labs-Diffusion-14B`、其下的 `linear_spec_lora` 和服务名 `nemotron-labs-diffusion-14b`。如同时显式传入 `--model`、`--lora-path` 或 `--served-model-name`，相应显式值优先。新结果目录包含模型规格，例如 `adaptive_failure_locator_14b_YYYYMMDD_HHMMSS`，不会与8B结果混淆。
+
+本轮排除AIME24和MMLU，只运行GSM8K、HumanEval、MBPP、MATH-500、AIME25、GPQA、IFEval和LiveCodeBench-C++全量样本。入口会依次为14B重新生成八份独立 `failure_locator_*.jsonl`，每完成一个数据集就刷新当前搜索，最终继续采用request级 `60%/20%/20%` 的search/selection/test协议；候选指标先在各数据集内计算，再对八个数据集等权平均。`--search-max-rounds-per-dataset 0` 取消search阶段的逐数据集轮数上限，`--grid extended` 使用更密的预声明免训练规则网格。
+
+在项目根目录执行以下单行命令即可完成“14B八数据集全量新trace采集→全局候选搜索→selection冻结唯一策略→未见test评估→增量中文报告”的完整流程：
+
+```bash
+bash observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.sh --model-size 14b --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --block-size 16 --history-windows 1,2,4 --aggregations mean,median,ewma --grid extended --gpu-device auto --gpu-candidates 1 --gpu-memory-reserve-gb 40 --tokens 8192 --context-length 10240 --temperature 0 --threshold 0 --disable-thinking --search-ratio 0.6 --selection-ratio 0.2 --split-seed 20260828 --shortlist 150 --report-top 30 --search-max-rounds-per-dataset 0 --bootstrap-replicates 500
+```
+
+本命令不传 `--max-samples` 或 `--quick-test`，因此八个数据集均为全量生成。最终 `report.md` 的进度、数据集行、test结果、oracle和等权平均均由实际传入的数据集动态生成，宏平均应显示 `D=8`；14B得到的策略和阈值不得与8B结果混用。

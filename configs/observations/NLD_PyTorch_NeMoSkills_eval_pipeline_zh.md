@@ -427,7 +427,7 @@ results/pytorch_nemo_eval_real_smoke/linearspec_base/eval_20260804_114039
 下面这条命令与以下 SGLang 实验在 benchmark 顺序、单请求并发、显存占位、LinearSpec + LoRA、block size、生成长度、上下文长度和 non-thinking 设置上对齐；输出根目录可通过 `--output-path` 自行替换。
 
 ```bash
-bash observations/eval_pytorch_nemo.sh --mode linearspec_lora --benchmarks human-eval:1,mbpp:1,livecodebench-cpp:1,gsm8k:1,math-500:1,aime24:1,aime25:1,gpqa:1,mmlu:1,ifeval:1 --gpu-devices 0 --client-concurrency 1 --num-chunks 1 --gpu-memory-reserve-gb 40 --block-size 8 --threshold 0 --tokens 8192 --context-length 10240 --disable-thinking --output-path /data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results
+bash observations/eval_pytorch_nemo.sh --mode linearspec_lora --benchmarks human-eval:1,mbpp:1,livecodebench-cpp:1,gsm8k:1,math-500:1,aime24:1,aime25:1,gpqa:1,mmlu:1,ifeval:1 --gpu-devices 1 --client-concurrency 1 --num-chunks 1 --gpu-memory-reserve-gb 40 --block-size 8 --threshold 0 --tokens 8192 --context-length 10240 --disable-thinking --output-path /data/home/wly/dLLM/NLD_results/observations/pytorch_nemo_eval_results
 ```
 
 对应关系：

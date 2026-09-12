@@ -340,3 +340,53 @@ HEAD 为 `9a6c93e0a7962397b88c0951995aebd4305e4eae`，该提交已纳入本阶�
 3. 已区分原 multi、two-plus-new 与 conditional-rank 三套最多 4-row 方法；
 4. 已实时确认两项活跃任务是否完成，并保护对应进程和隐藏工作目录；
 5. 后续优先读取现有 report/trace/search，不重做已完成调研，不覆盖既有 observation/method。
+
+---
+
+时间戳：2026-09-09 00:44:01 +0800（CST）
+
+# 2026-09-09 动态 block 新阶段与去 P3 方法对齐指南
+
+本节优先于前文截至 `2026-09-04` 的运行快照。新会话先读 `configs/memory/quicknote.md` 最后一节，再实时检查 Git、进程、GPU、结果目录和增量报告；下述完成数只代表本时间戳。
+
+## 23. 动态 block size 最新阅读顺序
+
+不要从零重做历史信号调研，按目标分层阅读：
+
+1. 跨服务器只迁移 Git 仓库时，先读 `configs/dynamic block size/README_zh.md`，再按其索引读 `01_实验问题与方法_zh.md`、`02_核心结果与解读_zh.md`、`03_当前进度与后续方案_zh.md`。这些文件保存首轮动态块实验的必要方法和结果摘要，但不是原始 trace，也早于下面三套新策略。
+2. 首轮完整 SGLang 历史信号实验读 `configs/observations/NLD_SGLang_NeMoSkills_dynamic_block_size_history_signal_zh.md`、`observations/sglang_dynamic_block_history_signal/` 和结果 `/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/`。该结果现在已完成探索九集、离线搜索、S8 与 S16 九集冻结验证。
+3. 若问题是“只用一个标量信号和统一参数表控制 L8/L16/L32”，读 `configs/observations/NLD_SGLang_NeMoSkills_unified_scalar_dynamic_block_policy_zh.md` 与 `observations/sglang_unified_scalar_block_policy/`；结果 `/data/home/wly/dLLM/NLD_results/observations/sglang_unified_scalar_block_policy_results/unified_scalar_block_20260906_111126/` 的 51 个候选搜索完成，最终选中单信号 `head_entropy_ma4`，但 on-policy 冻结验证只有 GSM8K（1/9），不能视为完整验证。
+4. 若问题是“分别从初始 L8 的三动作空间、初始 L16 的 L16/L32 动作空间最大化接收/计算比”，读 `configs/observations/NLD_SGLang_NeMoSkills_dual_action_space_efficiency_policy_zh.md` 与 `observations/sglang_dual_action_efficiency_policy/`；结果 `/data/home/wly/dLLM/NLD_results/observations/sglang_dual_action_efficiency_policy_results/dual_action_efficiency_20260906_151907/` 的八集等权搜索完成并选中共享信号 `full_streak`，但冻结验证只有 S8/GSM8K（1/8）。
+5. 若问题引入 B200 实测成本和虚拟并发度 C=2/4/8/16/32/64/128，先读延迟源数据 `configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md`，再读 `configs/observations/NLD_SGLang_NeMoSkills_B200_latency_dynamic_block_policy_zh.md` 与 `observations/sglang_b200_latency_dynamic_block_policy/`。实时结果为 `/data/home/wly/dLLM/NLD_results/observations/sglang_b200_latency_dynamic_block_policy_results/b200_latency_dynamic_20260908_032740/`；离线 51 候选搜索完成，冻结验证仍在运行。
+
+上述实验的损失函数、baseline、数据集范围和动作空间不同。统一标量实验包含 MMLU 子集且排除 AIME24；后两套正式搜索排除 AIME24/MMLU、其余八集等权；B200 实验又按各 C 的实测 forward 延迟优化理论吞吐。禁止把不同报告中的“增益”直接当成同一指标比较，必须先读表前变量说明、成本定义和等权口径。
+
+## 24. margin-risk 方法最新阅读顺序
+
+1. `margin_risk_conditional_rank_overlap_20260903_154307` 已从前一快照的 7/9 变为九数据集完成；需要结论时直接读其 `report.md`，不要沿用旧运行状态。
+2. 原单候选实现仍为 `method/margin_risk_overlap_linearspec/`。其入口和报告现支持按实际传入的数据集数量/名称动态生成，并支持 block size=32；排除 AIME24/MMLU 的八集 B32 命令见 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_overlap_linearspec_zh.md`。这次是兼容性增强，不是新算法目录。
+3. 原最多四 row 的 multi-overlap 仍以 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_multi_overlap_linearspec_zh.md` 和 `method/margin_risk_multi_overlap_linearspec/` 为准。其 `margin_risk_multi_overlap_20260901_150214` 已用于分析 P1/P2/P3/new 的命中贡献和 dense 计算成本。
+4. 最新精简方法为 `method/margin_risk_no_p3_overlap_linearspec/`，手册是 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_no_p3_overlap_linearspec_zh.md`。分支规则是 C0→new、C1→P1+new、C2→P1+P2+new、C3+→P1+P2；P3 不执行，只保留反事实审计，连 verifier 最多四 row。报告新增 decode dense query-token slot 总量、每 forward slot、每输出 token slot 及 padding 分布，解读时必须与 decode-only TPF 一起看。
+
+去 P3 实现已有静态测试、融合 GPU smoke 和单样本端到端 smoke。正式八集任务为 `/data/home/wly/dLLM/NLD_results/margin_risk_no_p3_overlap_results/margin_risk_no_p3_overlap_20260909_003231/`，本时间戳仍在 HumanEval、报告 0/8；不要误用 smoke 目录作为正式结果。
+
+## 25. 实时任务与保护边界
+
+本文生成时有两项活跃任务：
+
+- GPU 1：`observations/sglang_b200_latency_dynamic_block_policy/eval_b200_latency_dynamic_block.sh --stage all`，正在 C=4/LiveCodeBench；`progress.json` 为搜索 51/51、冻结验证 15/56、最终汇总 2/7。
+- GPU 0：`method/margin_risk_no_p3_overlap_linearspec/eval_margin_risk_no_p3_overlap.sh` 的八集正式运行，正在 HumanEval。
+
+两项任务的 server、NeMo-Skills 子进程、端口和隐藏工作目录都属于活跃运行态，不得停止、移动、删除或复用。新会话要重新读取进程树、`progress.json`、`report.md`、Settings、metrics/error 和当前日志；若任务已结束，只更新当前理解，不改写本历史快照。
+
+HEAD 快照为 `2daed19a4d51d7d95896463d36c2e8e4894b6835`。追加 memory 前工作树已有用户修改 `configs/NLD_prompt.md`，必须保留；memory 文档自身的本次变更也不代表用户授权提交 Git。
+
+## 26. 最新对齐完成判据
+
+继续开发或解读前，新会话应能简要确认：
+
+1. 已区分首轮历史信号、统一标量、双动作接收/计算比和 B200 延迟感知四个动态块阶段；
+2. 已理解 `configs/dynamic block size/` 是可迁移摘要，外部 `NLD_results` 才含原始 trace 和实时报告；
+3. 已区分“离线搜索完成”与“on-policy 冻结验证完成”，不会把 1/9 或 1/8 局部结果外推为最终结论；
+4. 已理解原 multi-overlap 到 no-P3 的精简关系，以及为何 TPF 必须联合 dense slot/padding 解读；
+5. 已实时核验并保护活跃任务，保留用户未提交改动，后续继续使用独立 observation/method 目录。

@@ -34,6 +34,7 @@ GPU/runtime:
   --client-concurrency N --num-chunks N
 
 Model/data/output:
+  --model-size 8b|14b             select matching model/LoRA/name defaults
   --model PATH --lora-path PATH --dtype DTYPE
   --served-model-name NAME
   --output-path PATH

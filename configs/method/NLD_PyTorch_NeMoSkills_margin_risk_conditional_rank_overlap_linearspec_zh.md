@@ -187,7 +187,7 @@ bash method/margin_risk_conditional_rank_overlap_linearspec/eval_margin_risk_con
 ### 4.5 常用十数据集，报告仍排除 AIME24
 
 ```bash
-bash method/margin_risk_conditional_rank_overlap_linearspec/eval_margin_risk_conditional_rank_overlap.sh --mode overlap_lora --benchmarks gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime24:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device auto --gpu-min-free-gb 24 --gpu-memory-reserve-gb 0 --efficiency-only --output-path /data/home/wly/dLLM/NLD_results/margin_risk_conditional_rank_overlap_results
+bash method/margin_risk_conditional_rank_overlap_linearspec/eval_margin_risk_conditional_rank_overlap.sh --mode overlap_lora --benchmarks gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime24:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1,mmlu:1 --tokens 8192 --context-length 10240 --block-size 16 --threshold 0 --margin-risk-threshold 0.5 --temperature 0 --top-p 0.95 --disable-thinking --client-concurrency 1 --num-chunks 1 --gpu-device 0 --gpu-memory-reserve-gb 40 --efficiency-only --output-path /data/home/wly/dLLM/NLD_results/margin_risk_conditional_rank_overlap_results
 ```
 
 ### 4.6 单数据集与自定义多数据集

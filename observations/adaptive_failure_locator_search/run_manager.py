@@ -146,6 +146,7 @@ def initialize(args: argparse.Namespace) -> None:
         "command": args.command,
         "backend": "native_pytorch_linearspec_failure_locator",
         "mode": args.mode,
+        "model_size": getattr(args, "model_size", "8b"),
         "benchmarks": args.benchmarks,
         "benchmark_specs": specs,
         "model": args.model,
@@ -210,7 +211,7 @@ def initialize(args: argparse.Namespace) -> None:
 - 创建时间：`{settings['created_at']}`
 - 实验目的：{settings['purpose']}
 - 数据集：`{settings['benchmarks']}`
-- 模式/模型：`{settings['mode']}` / `{settings['model']}`
+- 模式/模型规格/模型：`{settings['mode']}` / `{settings['model_size']}` / `{settings['model']}`
 - LoRA：`{settings['lora_path'] or '无（base 模式）'}`
 - block/history/聚合：`L={settings['block_size']}` / `{settings['history_windows']}` / `{settings['aggregations']}`
 - 搜索网格：`{settings['grid']}`；shortlist=`{settings['shortlist']}`；每数据集搜索轮上限=`{settings['search_max_rounds_per_dataset']}`
@@ -567,6 +568,7 @@ def create_parser() -> argparse.ArgumentParser:
     init.add_argument("--command", required=True)
     init.add_argument("--mode", required=True)
     init.add_argument("--benchmarks", required=True)
+    init.add_argument("--model-size", default="8b", choices=["8b", "14b"])
     init.add_argument("--model", required=True)
     init.add_argument("--served-model-name", required=True)
     init.add_argument("--lora-path", default="")

@@ -7,7 +7,8 @@ ORIGINAL_ARGS=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_ROOT_DEFAULT="/data/home/wly/dLLM/NLD_results/observations/adaptive_failure_locator_search_results"
-MODEL_DEFAULT="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
+MODEL_DEFAULT_8B="/data1/linyewei/models/Nemotron-Labs-Diffusion-8B"
+MODEL_DEFAULT_14B="/data1/linyewei/models/Nemotron-Labs-Diffusion-14B"
 DATA_DEFAULT="/data1/linyewei/datasets/NLD"
 PYTHON_DEFAULT="/data/home/wly/.conda/envs/nld_sglang/bin/python"
 [[ -x "$PYTHON_DEFAULT" ]] || PYTHON_DEFAULT="python"
@@ -26,8 +27,9 @@ usage() { sed -n '1,240p' "$SCRIPT_DIR/USAGE.txt"; }
 MODE="linearspec_lora"
 BENCHMARKS="$BENCHMARKS_DEFAULT"
 OUTPUT_PATH="$RESULTS_ROOT_DEFAULT"
-MODEL="$MODEL_DEFAULT"
-SERVED_MODEL_NAME="nemotron-labs-diffusion-8b"
+MODEL_SIZE="8b"
+MODEL=""
+SERVED_MODEL_NAME=""
 LORA_PATH=""
 DTYPE="bfloat16"
 BLOCK_SIZE="16"
@@ -79,6 +81,7 @@ while [[ $# -gt 0 ]]; do
         --mode) MODE="$2"; shift 2 ;;
         --benchmarks) BENCHMARKS="$2"; shift 2 ;;
         --output-path|--out-dir) OUTPUT_PATH="$2"; shift 2 ;;
+        --model-size) MODEL_SIZE="$2"; shift 2 ;;
         --model) MODEL="$2"; shift 2 ;;
         --served-model-name|--model-name) SERVED_MODEL_NAME="$2"; shift 2 ;;
         --lora-path) LORA_PATH="$2"; shift 2 ;;
@@ -130,6 +133,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+MODEL_SIZE="${MODEL_SIZE,,}"
+case "$MODEL_SIZE" in
+    8b)
+        MODEL_PROFILE_DEFAULT="$MODEL_DEFAULT_8B"
+        SERVED_MODEL_PROFILE_DEFAULT="nemotron-labs-diffusion-8b"
+        ;;
+    14b)
+        MODEL_PROFILE_DEFAULT="$MODEL_DEFAULT_14B"
+        SERVED_MODEL_PROFILE_DEFAULT="nemotron-labs-diffusion-14b"
+        ;;
+    *) echo "ERROR: --model-size must be 8b or 14b" >&2; exit 1 ;;
+esac
+[[ -n "$MODEL" ]] || MODEL="$MODEL_PROFILE_DEFAULT"
+[[ -n "$SERVED_MODEL_NAME" ]] || SERVED_MODEL_NAME="$SERVED_MODEL_PROFILE_DEFAULT"
 [[ -n "$LORA_PATH" ]] || LORA_PATH="$MODEL/linear_spec_lora"
 [[ "$MODE" == "linearspec_lora" ]] || LORA_PATH=""
 [[ -n "$NUM_CHUNKS" ]] || NUM_CHUNKS="$CLIENT_CONCURRENCY"
@@ -201,7 +218,7 @@ fi
 OUTPUT_PATH="$(realpath -m "$OUTPUT_PATH")"
 NEMO_SKILLS_DATA_DIR_ARG="$(realpath -m "$NEMO_SKILLS_DATA_DIR_ARG")"
 GOOGLE_RESEARCH_DIR="$(realpath -m "$GOOGLE_RESEARCH_DIR")"
-RUN_NAME="adaptive_failure_locator_$(date +%Y%m%d_%H%M%S)"
+RUN_NAME="adaptive_failure_locator_${MODEL_SIZE}_$(date +%Y%m%d_%H%M%S)"
 FINAL_DIR="$OUTPUT_PATH/$RUN_NAME"
 suffix=1
 while [[ -e "$FINAL_DIR" ]]; do FINAL_DIR="$OUTPUT_PATH/${RUN_NAME}_$(printf '%02d' "$suffix")"; suffix=$((suffix + 1)); done
@@ -213,6 +230,7 @@ show_resolution() {
     echo " LinearSpec adaptive failure locator (training-free)"
     echo "================================================================"
     echo " Benchmarks:       $BENCHMARKS"
+    echo " Model size/path:  $MODEL_SIZE / $MODEL"
     echo " Block/history:    $BLOCK_SIZE / $HISTORY_WINDOWS"
     echo " Grid/split:       $GRID / $SEARCH_RATIO,$SELECTION_RATIO"
     echo " GPU/reserve:      $GPU_DEVICE / $GPU_MEMORY_RESERVE_GB GiB"
@@ -247,7 +265,7 @@ done
 show_resolution
 [[ "$TEMPERATURE" == "0" || "$TEMPERATURE" == "0.0" ]] || echo "WARNING: formal locator comparison should use temperature=0." >&2
 
-init_args=("$RUN_MANAGER" init --run-dir "$FINAL_DIR" --entrypoint "observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.sh" --command "$ORIGINAL_COMMAND" --mode "$MODE" --benchmarks "$BENCHMARKS" --model "$MODEL" --served-model-name "$SERVED_MODEL_NAME" --lora-path "$LORA_PATH" --dtype "$DTYPE" --block-size "$BLOCK_SIZE" --history-windows "$HISTORY_WINDOWS" --aggregations "$AGGREGATIONS" --grid "$GRID" --threshold "$THRESHOLD" --temperature "$TEMPERATURE" --top-p "$TOP_P" --tokens "$TOKENS" --context-length "$CONTEXT_LENGTH" --gpu-device "$GPU_DEVICE" --gpu-candidates "$GPU_CANDIDATES" --gpu-min-free-gb "$GPU_MIN_FREE_GB" --gpu-memory-reserve-gb "$GPU_MEMORY_RESERVE_GB" --port "$PORT" --client-concurrency "$CLIENT_CONCURRENCY" --num-chunks "$NUM_CHUNKS" --trace-detail "$TRACE_DETAIL" --split-seed "$SPLIT_SEED" --search-ratio "$SEARCH_RATIO" --selection-ratio "$SELECTION_RATIO" --shortlist "$SHORTLIST" --report-top "$REPORT_TOP" --search-max-rounds-per-dataset "$SEARCH_MAX_ROUNDS_PER_DATASET" --bootstrap-replicates "$BOOTSTRAP_REPLICATES" --pytorch-python "$PYTORCH_PYTHON" --eval-python "$EVAL_PYTHON" --nemo-skills-data-dir "$NEMO_SKILLS_DATA_DIR_ARG" --google-research-dir "$GOOGLE_RESEARCH_DIR")
+init_args=("$RUN_MANAGER" init --run-dir "$FINAL_DIR" --entrypoint "observations/adaptive_failure_locator_search/eval_adaptive_failure_locator.sh" --command "$ORIGINAL_COMMAND" --mode "$MODE" --benchmarks "$BENCHMARKS" --model-size "$MODEL_SIZE" --model "$MODEL" --served-model-name "$SERVED_MODEL_NAME" --lora-path "$LORA_PATH" --dtype "$DTYPE" --block-size "$BLOCK_SIZE" --history-windows "$HISTORY_WINDOWS" --aggregations "$AGGREGATIONS" --grid "$GRID" --threshold "$THRESHOLD" --temperature "$TEMPERATURE" --top-p "$TOP_P" --tokens "$TOKENS" --context-length "$CONTEXT_LENGTH" --gpu-device "$GPU_DEVICE" --gpu-candidates "$GPU_CANDIDATES" --gpu-min-free-gb "$GPU_MIN_FREE_GB" --gpu-memory-reserve-gb "$GPU_MEMORY_RESERVE_GB" --port "$PORT" --client-concurrency "$CLIENT_CONCURRENCY" --num-chunks "$NUM_CHUNKS" --trace-detail "$TRACE_DETAIL" --split-seed "$SPLIT_SEED" --search-ratio "$SEARCH_RATIO" --selection-ratio "$SELECTION_RATIO" --shortlist "$SHORTLIST" --report-top "$REPORT_TOP" --search-max-rounds-per-dataset "$SEARCH_MAX_ROUNDS_PER_DATASET" --bootstrap-replicates "$BOOTSTRAP_REPLICATES" --pytorch-python "$PYTORCH_PYTHON" --eval-python "$EVAL_PYTHON" --nemo-skills-data-dir "$NEMO_SKILLS_DATA_DIR_ARG" --google-research-dir "$GOOGLE_RESEARCH_DIR")
 [[ -n "$MAX_SAMPLES" ]] && init_args+=(--max-samples "$MAX_SAMPLES")
 [[ "$QUICK_TEST" == "true" ]] && init_args+=(--quick-test)
 [[ "$ENABLE_THINKING" == "true" ]] && init_args+=(--enable-thinking)

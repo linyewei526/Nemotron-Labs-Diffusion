@@ -124,3 +124,32 @@
    - 本次审计 HEAD 为 `9a6c93e0a7962397b88c0951995aebd4305e4eae`；提交后工作树干净，本次只追加两份 memory 文档。
    - 上述 S16 验证和条件式 rank 正式实验仍有活跃进程及隐藏工作目录，不得停止、移动或删除。
    - 待两项任务自然结束后，先核验最终 Settings、metrics/error、覆盖率和报告完整性，再分析冻结动态 block 策略及条件式 rank 方法结果。
+
+---
+
+时间戳：2026-09-09 00:44:01 +0800（CST）
+
+## 增量交接记录
+
+1. 动态 block size 研究
+   - 首轮 SGLang 历史信号实验的探索九集、离线搜索及 S8/S16 九集冻结验证均已完成；代码、手册和结果仍分别位于 `observations/sglang_dynamic_block_history_signal/`、`configs/observations/NLD_SGLang_NeMoSkills_dynamic_block_size_history_signal_zh.md`、`/data/home/wly/dLLM/NLD_results/observations/sglang_dynamic_block_history_signal_results/dynamic_block_history_20260901_032420/`。
+   - 已新增可随 Git 迁移的核心方法、结果解读、当前进度与后续方案档案，入口为 `configs/dynamic block size/README_zh.md`；它是阶段性摘要，不替代后续新实验的实时报告。
+   - 已新增统一标量三动作策略：代码 `observations/sglang_unified_scalar_block_policy/`，手册 `configs/observations/NLD_SGLang_NeMoSkills_unified_scalar_dynamic_block_policy_zh.md`，结果 `/data/home/wly/dLLM/NLD_results/observations/sglang_unified_scalar_block_policy_results/unified_scalar_block_20260906_111126/`。51 个搜索候选已完成，冻结验证目前仅完成 GSM8K（1/9）。
+   - 已新增双动作空间接收/计算比策略：代码 `observations/sglang_dual_action_efficiency_policy/`，手册 `configs/observations/NLD_SGLang_NeMoSkills_dual_action_space_efficiency_policy_zh.md`，结果 `/data/home/wly/dLLM/NLD_results/observations/sglang_dual_action_efficiency_policy_results/dual_action_efficiency_20260906_151907/`。八集等权搜索已完成，冻结验证目前仅完成 S8/GSM8K（1/8）。
+   - B200 的 C=1..128、B=8/16/32 forward 延迟数据见 `configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md`；基于该成本表的并发度感知策略代码、手册和结果分别为 `observations/sglang_b200_latency_dynamic_block_policy/`、`configs/observations/NLD_SGLang_NeMoSkills_B200_latency_dynamic_block_policy_zh.md`、`/data/home/wly/dLLM/NLD_results/observations/sglang_b200_latency_dynamic_block_policy_results/b200_latency_dynamic_20260908_032740/`。
+
+2. margin-risk 方法
+   - Conditional-rank 正式结果 `margin_risk_conditional_rank_overlap_20260903_154307` 已完成九数据集，具体统计直接读取其 `report.md`。
+   - 原单候选 `method/margin_risk_overlap_linearspec/` 已补齐任意传入数据集范围、动态报告表和 block size=32 支持；八数据集 B32 单行命令见原手册新增章节。
+   - 对原 multi-overlap 的分支成本分析后，新增去 P3 版本：代码 `method/margin_risk_no_p3_overlap_linearspec/`，手册 `configs/method/NLD_PyTorch_NeMoSkills_margin_risk_no_p3_overlap_linearspec_zh.md`，结果根目录 `/data/home/wly/dLLM/NLD_results/margin_risk_no_p3_overlap_results/`。它保留 P1/P2/new 的条件组合，并新增 decode dense query-token slot 总量、每 forward 和每输出 token 统计；实现、单测和 smoke 已完成。
+
+3. 当前运行与版本快照
+   - B200 延迟感知动态块实验正在 GPU 1 做 C=4/LiveCodeBench 冻结验证；`progress.json` 为搜索 51/51、验证 15/56、最终汇总 2/7。对应进程和隐藏工作目录不得停止、移动或清理。
+   - 去 P3 方法的八数据集正式任务正在 GPU 0 从 HumanEval 开始运行；结果为 `margin_risk_no_p3_overlap_20260909_003231`，本快照下报告仍为初始化 0/8。其活跃隐藏工作目录同样不得处理。
+   - HEAD 为 `2daed19a4d51d7d95896463d36c2e8e4894b6835`；更新前工作树仅有用户对 `configs/NLD_prompt.md` 的修改，本次只追加两份 memory 文档。后续必须以实时状态为准。
+
+## 后续优先事项
+
+- 先让两项活跃任务自然运行并核验其增量报告；B200 实验需完成 56 个并发度×数据集验证，去 P3 方法需完成八集后再下最终结论。
+- Unified-scalar 和 dual-action 只有离线搜索完成，在线冻结验证并不完整；除非用户要求续跑，不要把局部验证写成最终结论，也不要重做已完成搜索。
+- 比较动态块策略时区分三种目标和数据集范围，并优先读取各自 `report.md`；比较 overlap 方法时同时查看 decode-only TPF 与 dense slot/padding，不能只看 fused forward 次数。
