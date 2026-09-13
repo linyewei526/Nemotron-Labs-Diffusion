@@ -112,7 +112,7 @@ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficien
 只验证离线赢家：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family winner --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --mem-fraction 0.70 --policy-family winner --validation-trace-retention delete-after-analysis
 ```
 
 从任意中断位置自动补齐trace、搜索和赢家验证：
@@ -170,16 +170,16 @@ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficien
 离线搜索完成后，8B在GPU0执行唯一winner的八数据集×七C低存储验证：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --gpu-devices 0 --port 30000 --proxy-port 31000 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --gpu-devices 0 --port 30000 --proxy-port 31000 --batch-size 1 --client-concurrency 1 --mem-fraction 0.70 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
 ```
 
 14B在GPU1执行唯一winner的八数据集×七C低存储验证；端口与8B显式隔离，因此两条验证命令允许并行运行：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1 --port 30001 --proxy-port 31001 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1 --port 30001 --proxy-port 31001 --batch-size 1 --client-concurrency 1 --mem-fraction 0.55 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
 ```
 
-上面以`--gpu-memory-reserve-gb 8`作为可直接运行的保守示例：每个真实验证任务启动时额外占用8GiB显存，并在该任务退出时释放；若启动前GPU剩余显存不足，应减小该值，设为`0`则禁用。它不会改变B200虚拟并发度C的成本查表逻辑。验证仍按“数据集外层、C内层”执行，每个request物理并发度为1；每完成一个“数据集×C”，程序就把统计写入`search/validation_parts/`、更新累计验证JSON和`report.md`，随后删除该组原始验证trace。
+验证命令显式设置8B的`--mem-fraction 0.70`和14B的`--mem-fraction 0.55`；该命令行参数会覆盖run目录原先保存的值，便于验证启动时重新分配模型权重与KV静态预算。上面以`--gpu-memory-reserve-gb 8`作为可直接运行的保守示例：每个真实验证任务启动时额外占用8GiB显存，并在该任务退出时释放；若启动前GPU剩余显存不足，应减小该值，设为`0`则禁用。它不会改变B200虚拟并发度C的成本查表逻辑。验证仍按“数据集外层、C内层”执行，每个request物理并发度为1；每完成一个“数据集×C”，程序就把统计写入`search/validation_parts/`、更新累计验证JSON和`report.md`，随后删除该组原始验证trace。
 
 验证中断后，原样重新执行对应的单行`--stage validate`命令即可续跑。已经生成并通过校验的紧凑结果会被复用，不会重新推理；尚未完成的组合继续执行。搜索、策略、验证紧凑结果、进度和最终报告始终落在各自原有时间戳run目录中。
 
@@ -197,15 +197,15 @@ search/policy_winner.json
 默认全流程只验证`policy_winner.json`。如之后需要单独全量启动另一个策略，无需重新采集trace或重新搜索：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family local_ratio --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --mem-fraction 0.70 --policy-family local_ratio --validation-trace-retention delete-after-analysis
 ```
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family direct_rank --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --mem-fraction 0.70 --policy-family direct_rank --validation-trace-retention delete-after-analysis
 ```
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family global_fractional --validation-trace-retention delete-after-analysis
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --mem-fraction 0.70 --policy-family global_fractional --validation-trace-retention delete-after-analysis
 ```
 
 各策略使用独立的`traces/validate/<family>/`、`search/validation_parts/<family>/`和`eval_runs/validate/<family>/`目录，不会覆盖赢家结果。
