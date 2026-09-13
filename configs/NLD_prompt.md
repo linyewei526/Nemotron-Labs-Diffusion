@@ -403,11 +403,14 @@ L8的P(worth32),P(worth16),L16的P(worth32),P(safe8)分别是怎么设计的？
 
 代码运行后终端显示参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_prompt.md第406-413行，直接退出了：
 
-(nld_sglang) wly@a100:~/dLLM/Nemotron-Labs-Diffusion$ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage all --m
-odel-size 8b --benchmarks gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --concurrencies 2,4,8,16,32,64,128 --cost-doc
-ument configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md --gpu-devices 0 --tp-size 1 --trace-batch-size 1 --trace-client-concurrency 1 --batch-size 1 --c
-lient-concurrency 1 --search-gpu-hold-gb 70 --search-gpu-hold-chunk-gb 1 --gpu-memory-reserve-gb 0 --mem-fraction 0.65 --tokens 8192 --context-length 10240
- --temperature 0 --top-p 0.95 --cv-folds 5 --signal-bins 24 --rho-grid-size 33 --report-top 20 --dataset-max-attempts 3 --dataset-retry-delay-s 10
-[阶段1/3] 采集八数据集全量新verifier shadow trace
-[新verifier trace] |----------------------------| 0/8 (  0%) 断点扫描
-(nld_sglang) wly@a100:~/dLLM/Nemotron-Labs-Diffusion$
+14B模型的B200 C1～128、B8/B16/B32延迟文档出来了，参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD-14B  B200 forward sweep.md，检查这是否有问题，是否能直接替换进14B模型检索最优策略的命令行里？
+
+8B和14B模型的运行进程都报错了，报错类型相同，其中一个报错信息可以参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_prompt.md第410-549行。1.帮我检查是不是空间满了，我刚刚清理了一波，检查现在剩余内存怎么样，怎么恢复我当前两个实验进度并继续，目前应该都还在trace生成阶段。2.后续策略检索过的验证阶段就不会生成trace或其他很占内存的东西了吧？只要记录指标数据就好。先不要改代码或运行实验，先回答我。
+
+好的，现在我已经按照你的指导先只恢复trace采集了。对于验证阶段，我只关心出来的相对固定block size的性能提升指标，并不关心具体每一个的trace，所以请你修改代码，对验证阶段修改为每个数据集和一个并发度C的组合完成后立即删除原始trace的低存储版本。注意你的修改决不能破坏原有实验功能和当前已经开始的继续trace采集。先不要改代码或跑实验，先理解并说明是否明白我的目标和需求，以及是否能完成。
+
+好的，现在开始修改吧，注意修改全部完成后更新下/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_B200_verify_efficiency_dynamic_block_policy_zh.md指导说明。
+
+为什么bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage collect --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1续跑后终端显示参见/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/NLD_prompt.md第416-584行。但是我nvidia-smi没有找到在GPU 1上我的进程，只在GPU0上发现了sglang::scheduler进程。同时我的GPU0上的8B任务和GPU1上的14B任务都跑得变得非常慢，是不是都加载到GPU0的SGLang上去了？
+
+等trace跑完后我希望手动来为8B/14B先进行离线搜索和report.md记录，再手动启动全数据集×C验证，这样在离线搜索阶段就不用守护GPU显存了，而在后续验证阶段又能指定--gpu-memory-reserve-gb和做完一组删一组trace。最后全落盘在同一个目录下并通过report.md展示结果。能实现吗？能在/data/home/wly/dLLM/Nemotron-Labs-Diffusion/configs/observations/NLD_SGLang_NeMoSkills_B200_verify_efficiency_dynamic_block_policy_zh.md里帮我补充满足这一需求的单行命令行吗？先不要动，先回答我。

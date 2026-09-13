@@ -188,12 +188,18 @@ def read_trace(
     committed_only: bool = False,
     max_invalid_rate: float = 0.05,
 ) -> TraceData:
-    paths = sorted(
-        root.glob("*.jsonl"),
-        key=lambda path: (
-            EXPECTED_ORDER.index(path.stem) if path.stem in EXPECTED_DATASETS else 999,
-            path.stem,
-        ),
+    paths = (
+        [root]
+        if root.is_file()
+        else sorted(
+            root.glob("*.jsonl"),
+            key=lambda path: (
+                EXPECTED_ORDER.index(path.stem)
+                if path.stem in EXPECTED_DATASETS
+                else 999,
+                path.stem,
+            ),
+        )
     )
     if not paths:
         raise RuntimeError(f"no trace jsonl under {root}")

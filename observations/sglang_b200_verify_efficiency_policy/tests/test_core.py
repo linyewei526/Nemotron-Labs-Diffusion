@@ -27,6 +27,7 @@ from sglang_b200_verify_efficiency_policy.models import (
     sample_summary,
 )
 from sglang_b200_verify_efficiency_policy.policy_runtime import choose_action
+from sglang_b200_verify_efficiency_policy.search import merge_validation_parts
 
 
 class CoreTests(unittest.TestCase):
@@ -310,6 +311,210 @@ class CoreTests(unittest.TestCase):
             human_done = completed.stdout.index("完成 human-eval")
             gsm_done = completed.stdout.index("完成 gsm8k")
             self.assertLess(human_done, gsm_done, completed.stdout)
+
+    def test_compact_validation_parts_merge_with_equal_dataset_weight(self) -> None:
+        def summary_row(samples: int, score: float) -> dict[str, float | int]:
+            return {
+                "samples": samples,
+                "rounds": samples * 3,
+                "score_token_ms_req": score,
+                "pure_forward_token_ms_batch": 2 * score,
+                "decode_tpf": 2 * score,
+                "mean_accept": 4 * score,
+                "mean_forward_ms": 10.0,
+                "l8_rate": 0.5,
+                "l16_rate": 0.3,
+                "l32_rate": 0.2,
+                "baseline_score": 1.0,
+            }
+
+        with tempfile.TemporaryDirectory() as directory:
+            parts = Path(directory)
+            for dataset, samples, score in (
+                ("gsm8k", 1000, 1.0),
+                ("human-eval", 10, 3.0),
+            ):
+                dynamic = summary_row(samples, score)
+                fixed = {
+                    str(block): {
+                        "datasets": {dataset: summary_row(samples, 1.0)},
+                        "macro": {},
+                    }
+                    for block in (8, 16, 32)
+                }
+                payload = {
+                    "protocol": {
+                        "model_size": "8b",
+                        "concurrency": 2,
+                        "requests_by_dataset": {dataset: samples},
+                        "rows": samples * 3,
+                        "policy_family": "local_ratio",
+                        "policy_replay_mismatches": 0,
+                        "trace_quality": {
+                            "rows_original": samples * 3,
+                            "rows_usable": samples * 3,
+                            "rows_excluded": 0,
+                            "by_dataset": {dataset: {}},
+                        },
+                    },
+                    "dynamic_policy": {
+                        "datasets": {dataset: dynamic},
+                        "macro": {
+                            "oracle_agreement": 0.5,
+                            "mean_local_regret": 0.1,
+                            "p95_local_regret": 0.2,
+                            "oracle_mean_efficiency": 2.0,
+                        },
+                    },
+                    "fixed_baselines_same_dynamic_state": fixed,
+                    "official_sglang_metrics": {"datasets": {}},
+                }
+                (parts / f"{dataset}.json").write_text(
+                    json.dumps(payload), encoding="utf-8"
+                )
+            merged = merge_validation_parts(
+                parts,
+                {"family": "local_ratio"},
+                "8b",
+                2,
+                allow_partial=True,
+            )
+            macro = merged["dynamic_policy"]["macro"]
+            self.assertEqual(macro["datasets"], 2)
+            self.assertEqual(macro["samples"], 1010)
+            self.assertAlmostEqual(macro["score_token_ms_req"], 2.0)
+            self.assertAlmostEqual(macro["relative_gain_vs_designated_fixed"], 1.0)
+
+    def test_low_storage_validation_deletes_trace_and_resumes_from_compact(self) -> None:
+        project = OBSERVATIONS.parent
+        entry = (
+            project
+            / "observations/sglang_b200_verify_efficiency_policy/"
+            "eval_b200_verify_efficiency.sh"
+        )
+        cost_document = (
+            project / "configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            calls = temporary / "eval_calls.txt"
+            fake_eval = temporary / "fake_eval.sh"
+            fake_eval.write_text(
+                "#!/bin/bash\n"
+                "set -euo pipefail\n"
+                "printf 'call\\n' >> \"$FAKE_EVAL_CALLS\"\n"
+                "printf '%s\\n' '{\"event\":\"stub\"}' > \"$NLD_DYNAMIC_BLOCK_TRACE_FILE\"\n",
+                encoding="utf-8",
+            )
+            fake_search = temporary / "fake_search.py"
+            fake_search.write_text(
+                "import json, pathlib, sys\n"
+                "def value(flag): return sys.argv[sys.argv.index(flag)+1]\n"
+                "mode=value('--mode')\n"
+                "out=pathlib.Path(value('--output-dir'))\n"
+                "out.mkdir(parents=True,exist_ok=True)\n"
+                "if mode=='validate':\n"
+                " p=pathlib.Path(value('--validation-result')); p.parent.mkdir(parents=True,exist_ok=True); dataset=pathlib.Path(value('--trace-root')).stem; c=int(value('--concurrency')); row={'samples':1,'rounds':1,'score_token_ms_req':1.0,'pure_forward_token_ms_batch':1.0,'decode_tpf':1.0,'mean_accept':1.0,'mean_forward_ms':1.0,'l8_rate':1.0,'l16_rate':0.0,'l32_rate':0.0}; fixed={str(b):{'datasets':{dataset:row}} for b in (8,16,32)}; payload={'protocol':{'model_size':'8b','policy_family':'local_ratio','concurrency':c,'policy_replay_mismatches':0},'dynamic_policy':{'datasets':{dataset:row}},'fixed_baselines_same_dynamic_state':fixed}; p.write_text(json.dumps(payload))\n"
+                " c=value('--concurrency'); (out/f'validation_local_ratio_c{c}.json').write_text(json.dumps({'merged':True}))\n"
+                "elif mode=='merge-validation':\n"
+                " c=value('--concurrency'); (out/f'validation_local_ratio_c{c}.json').write_text(json.dumps({'merged':True}))\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "NLD_OBSERVATION_RESULTS_ROOT": str(temporary / "results"),
+                    "NLD_B200_VERIFY_EVAL_SGLANG": str(fake_eval),
+                    "NLD_B200_VERIFY_SEARCH": str(fake_search),
+                    "FAKE_EVAL_CALLS": str(calls),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+            common = [
+                "--model-size",
+                "8b",
+                "--benchmarks",
+                "gsm8k:1",
+                "--concurrencies",
+                "2",
+                "--allow-partial-datasets",
+                "--cost-document",
+                str(cost_document),
+                "--gpu-devices",
+                "0",
+                "--policy-family",
+                "local_ratio",
+            ]
+            collected = subprocess.run(
+                ["bash", str(entry), "--stage", "collect", *common],
+                cwd=project,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(collected.returncode, 0, collected.stdout)
+            run_dir = next(
+                (
+                    temporary
+                    / "results/sglang_b200_verify_efficiency_policy_results"
+                ).iterdir()
+            )
+            legacy_settings_path = run_dir / "settings.json"
+            legacy_settings = json.loads(legacy_settings_path.read_text(encoding="utf-8"))
+            legacy_settings.pop("validation_trace_retention", None)
+            legacy_settings_path.write_text(
+                json.dumps(legacy_settings), encoding="utf-8"
+            )
+            (run_dir / "search/policy_local_ratio.json").write_text(
+                json.dumps({"family": "local_ratio"}), encoding="utf-8"
+            )
+            validation = [
+                "bash",
+                str(entry),
+                "--stage",
+                "validate",
+                "--run-dir",
+                str(run_dir),
+                "--validation-trace-retention",
+                "delete-after-analysis",
+                *common,
+            ]
+            completed = subprocess.run(
+                validation,
+                cwd=project,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout)
+            raw = run_dir / "traces/validate/local_ratio/c2/gsm8k.jsonl"
+            compact = run_dir / "search/validation_parts/local_ratio/c2/gsm8k.json"
+            self.assertFalse(raw.exists())
+            self.assertTrue(compact.exists())
+            first_calls = calls.read_text(encoding="utf-8").count("call")
+            resumed = subprocess.run(
+                validation,
+                cwd=project,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(resumed.returncode, 0, resumed.stdout)
+            self.assertEqual(
+                calls.read_text(encoding="utf-8").count("call"), first_calls
+            )
+            settings = json.loads(
+                (run_dir / "settings.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                settings["validation_trace_retention"], "delete-after-analysis"
+            )
 
 
 if __name__ == "__main__":

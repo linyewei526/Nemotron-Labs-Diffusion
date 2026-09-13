@@ -78,6 +78,7 @@ def write_settings(run_dir: Path, payload: Mapping[str, Any]) -> None:
         f"- 信号限制：最多两个历史verify信号；第二信号仅为上一轮B与full截断状态",
         f"- 搜索：三类策略离线全量比较，只在线验证唯一全局赢家",
         f"- 成本：每个request均使用满名义并发度C的T_C(B)，不做分桶占用/尾组修正",
+        f"- 验证trace保留：`{payload.get('validation_trace_retention','keep')}`",
         f"- 命令：`{payload.get('command')}`",
     ]
     atomic_text(run_dir / "settings.md", "\n".join(lines))
@@ -138,17 +139,34 @@ def render_progress(run_dir: Path, settings: Mapping[str, Any], state: Mapping[s
         if search_result
         else None
     )
-    validated = {
-        str(row.get("dataset"))
-        for row in events
-        if row.get("phase") == "validate"
-        and row.get("status") == "completed"
-        and "/C" in str(row.get("dataset"))
-        and (
-            winner_family is None
-            or str(row.get("dataset")).endswith(f"/{winner_family}")
-        )
-    }
+    if (
+        settings.get("validation_trace_retention") == "delete-after-analysis"
+        and winner_family
+    ):
+        validated = {
+            f"{dataset}/C{concurrency}/{winner_family}"
+            for dataset in datasets
+            for concurrency in concurrencies
+            if load_json(
+                run_dir
+                / "search/validation_parts"
+                / winner_family
+                / f"c{concurrency}"
+                / f"{dataset}.json"
+            )
+        }
+    else:
+        validated = {
+            str(row.get("dataset"))
+            for row in events
+            if row.get("phase") == "validate"
+            and row.get("status") == "completed"
+            and "/C" in str(row.get("dataset"))
+            and (
+                winner_family is None
+                or str(row.get("dataset")).endswith(f"/{winner_family}")
+            )
+        }
     search_done = int(search_result is not None)
     total_validation = len(datasets) * len(concurrencies)
     lines = [
@@ -309,6 +327,7 @@ def render_validation(lines: List[str], run_dir: Path, settings: Mapping[str, An
             "## 获胜策略真实SGLang动态验证",
             "",
             "每个request按照冻结策略独立改变block size；B200理论成本始终查满名义并发度C。`TPF`只统计decode，两个模型forward构成一轮，所以等于每轮有效前进token除以2。`批吞吐`为C×token/ms/request，不代表含调度、prefill的实测wall TPS。",
+            f"验证trace保留策略为`{settings.get('validation_trace_retention','keep')}`。低存储模式会在每个数据集×C完成分析并原子保存紧凑结果后删除逐轮JSONL；本报告直接由紧凑结果重建。",
             "",
         ]
     )

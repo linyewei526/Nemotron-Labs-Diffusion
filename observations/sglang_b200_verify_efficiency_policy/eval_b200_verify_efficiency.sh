@@ -7,7 +7,7 @@ ORIGINAL_ARGS=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EVAL_SGLANG="${NLD_B200_VERIFY_EVAL_SGLANG:-$PROJECT_DIR/observations/eval_sglang.sh}"
-SEARCH="$SCRIPT_DIR/search.py"
+SEARCH="${NLD_B200_VERIFY_SEARCH:-$SCRIPT_DIR/search.py}"
 REPORTING="$SCRIPT_DIR/reporting.py"
 GPU_GUARD="$SCRIPT_DIR/gpu_memory_guard.py"
 RESULTS_ROOT="${NLD_OBSERVATION_RESULTS_ROOT:-/data/home/wly/dLLM/NLD_results/observations}/sglang_b200_verify_efficiency_policy_results"
@@ -71,6 +71,9 @@ SGLang/resources:
   --search-gpu-hold-chunk-gb V   Guard allocation chunk (default: 1)
   --policy-family NAME           winner/local_ratio/direct_rank/global_fractional
                                    validate defaults to winner; alternatives stay runnable
+  --validation-trace-retention keep|delete-after-analysis
+                                   Keep raw validation JSONL (default), or atomically
+                                   compact each dataset/C result before deleting its JSONL
   --port N / --proxy-port N      Omit for collision-safe pipeline selection
   --dataset-max-attempts N       Fresh-server retries (default: 3)
   --dataset-retry-delay-s N      Retry delay (default: 10)
@@ -101,6 +104,7 @@ SGLANG_SRC=""; SGLANG_WORK_DIR=""; DTYPE="bfloat16"; LORA_MODE="draft_only"; EXT
 CV_FOLDS="5"; SIGNAL_BINS="24"; RHO_GRID_SIZE="33"; REPORT_TOP="20"; SPLIT_SEED="20260912"
 MAX_ROWS_PER_DATASET="0"; ALLOW_PARTIAL="false"; DRY_RUN="false"
 MAX_INVALID_ROW_RATE="0.05"
+VALIDATION_TRACE_RETENTION="keep"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -149,6 +153,7 @@ while [[ $# -gt 0 ]]; do
         --split-seed) SPLIT_SEED="$2"; shift 2 ;;
         --max-rows-per-dataset) MAX_ROWS_PER_DATASET="$2"; shift 2 ;;
         --max-invalid-row-rate) MAX_INVALID_ROW_RATE="$2"; shift 2 ;;
+        --validation-trace-retention) VALIDATION_TRACE_RETENTION="$2"; shift 2 ;;
         --allow-partial-datasets) ALLOW_PARTIAL="true"; shift ;;
         --dry-run) DRY_RUN="true"; shift ;;
         -h|--help) usage; exit 0 ;;
@@ -160,6 +165,7 @@ done
 case "$STAGE" in collect|search|validate|remaining|all|report) ;; *) echo "ERROR: invalid stage $STAGE" >&2; exit 1 ;; esac
 case "$MODEL_SIZE" in 8b|14b) ;; *) echo "ERROR: --model-size must be 8b or 14b" >&2; exit 1 ;; esac
 case "$POLICY_FAMILY" in winner|local_ratio|direct_rank|global_fractional) ;; *) echo "ERROR: invalid --policy-family" >&2; exit 1 ;; esac
+case "$VALIDATION_TRACE_RETENTION" in keep|delete-after-analysis) ;; *) echo "ERROR: invalid --validation-trace-retention" >&2; exit 1 ;; esac
 [[ "$TEMPERATURE" == "0" || "$TEMPERATURE" == "0.0" ]] || { echo "ERROR: temperature must be 0" >&2; exit 1; }
 for integer in "$TP_SIZE" "$TRACE_BATCH_SIZE" "$TRACE_CLIENT_CONCURRENCY" "$DATASET_MAX_ATTEMPTS" "$CV_FOLDS" "$SIGNAL_BINS" "$RHO_GRID_SIZE" "$REPORT_TOP"; do
     [[ "$integer" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: expected positive integer, got $integer" >&2; exit 1; }
@@ -224,7 +230,7 @@ if [[ "$DRY_RUN" == true ]]; then
     echo "benchmarks=$ORDERED_BENCHMARKS excluded=AIME24,MMLU"
     echo "concurrencies=$CONCURRENCIES cost=$COST_DOCUMENT"
     echo "fresh_trace=true verifier_logits=true policy_family=$POLICY_FAMILY"
-    echo "search_guard=${SEARCH_GPU_HOLD_GB}GiB/GPU validation_order=dataset_outer,C_inner,winner_only"
+    echo "search_guard=${SEARCH_GPU_HOLD_GB}GiB/GPU validation_order=dataset_outer,C_inner,winner_only validation_trace_retention=$VALIDATION_TRACE_RETENTION"
     exit 0
 fi
 
@@ -242,6 +248,7 @@ CLI_PORT="$PORT"; CLI_PROXY="$PROXY_PORT"; CLI_ATTEMPTS="$DATASET_MAX_ATTEMPTS";
 CLI_TRACE_BATCH="$TRACE_BATCH_SIZE"; CLI_TRACE_CLIENT="$TRACE_CLIENT_CONCURRENCY"
 CLI_BATCH="$BATCH_SIZE"; CLI_CLIENT="$CLIENT_CONCURRENCY"; CLI_MEM_FRACTION="$MEM_FRACTION"
 CLI_BENCHMARKS="$ORDERED_BENCHMARKS"; PERSIST_BENCHMARK_OVERRIDE="false"
+CLI_VALIDATION_TRACE_RETENTION="$VALIDATION_TRACE_RETENTION"; PERSIST_RETENTION_OVERRIDE="false"
 
 if [[ -z "$RUN_DIR" ]]; then
     [[ "$STAGE" == collect || "$STAGE" == all ]] || { echo "ERROR: a new run must start with collect or all" >&2; exit 1; }
@@ -249,19 +256,20 @@ if [[ -z "$RUN_DIR" ]]; then
     RUN_DIR="$RESULTS_ROOT/b200_verify_efficiency_${MODEL_SIZE}_${TIMESTAMP}"
     COMMAND="bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh ${ORIGINAL_ARGS[*]}"
     SETTINGS_JSON="$($SGLANG_PYTHON -c 'import json,sys
-keys="stage model_size model lora_path served_model_name benchmarks concurrencies cost_document tokens context_length temperature top_p max_samples gpu_devices auto_gpu_min_free_gb tp_size trace_batch_size trace_client_concurrency batch_size client_concurrency gpu_memory_reserve_gb mem_fraction search_gpu_hold_gb search_gpu_hold_chunk_gb policy_family port proxy_port dataset_max_attempts dataset_retry_delay_s nemo_skills_data_dir sglang_python eval_python sglang_src sglang_work_dir dtype lora_mode extra_server_args cv_folds signal_bins rho_grid_size report_top split_seed max_rows_per_dataset allow_partial max_invalid_row_rate command".split()
-print(json.dumps(dict(zip(keys,sys.argv[1:])),ensure_ascii=False))' "$STAGE" "$MODEL_SIZE" "$MODEL" "$LORA_PATH" "$SERVED_MODEL_NAME" "$ORDERED_BENCHMARKS" "$CONCURRENCIES" "$COST_DOCUMENT" "$TOKENS" "$CONTEXT_LENGTH" "$TEMPERATURE" "$TOP_P" "$MAX_SAMPLES" "$GPU_DEVICES" "$AUTO_GPU_MIN_FREE_GB" "$TP_SIZE" "$TRACE_BATCH_SIZE" "$TRACE_CLIENT_CONCURRENCY" "$BATCH_SIZE" "$CLIENT_CONCURRENCY" "$GPU_MEMORY_RESERVE_GB" "$MEM_FRACTION" "$SEARCH_GPU_HOLD_GB" "$SEARCH_GPU_HOLD_CHUNK_GB" "$POLICY_FAMILY" "$PORT" "$PROXY_PORT" "$DATASET_MAX_ATTEMPTS" "$DATASET_RETRY_DELAY_S" "$NEMO_SKILLS_DATA_DIR" "$SGLANG_PYTHON" "$EVAL_PYTHON" "$SGLANG_SRC" "$SGLANG_WORK_DIR" "$DTYPE" "$LORA_MODE" "$EXTRA_SERVER_ARGS" "$CV_FOLDS" "$SIGNAL_BINS" "$RHO_GRID_SIZE" "$REPORT_TOP" "$SPLIT_SEED" "$MAX_ROWS_PER_DATASET" "$ALLOW_PARTIAL" "$MAX_INVALID_ROW_RATE" "$COMMAND")"
+keys="stage model_size model lora_path served_model_name benchmarks concurrencies cost_document tokens context_length temperature top_p max_samples gpu_devices auto_gpu_min_free_gb tp_size trace_batch_size trace_client_concurrency batch_size client_concurrency gpu_memory_reserve_gb mem_fraction search_gpu_hold_gb search_gpu_hold_chunk_gb policy_family port proxy_port dataset_max_attempts dataset_retry_delay_s nemo_skills_data_dir sglang_python eval_python sglang_src sglang_work_dir dtype lora_mode extra_server_args cv_folds signal_bins rho_grid_size report_top split_seed max_rows_per_dataset allow_partial max_invalid_row_rate validation_trace_retention command".split()
+print(json.dumps(dict(zip(keys,sys.argv[1:])),ensure_ascii=False))' "$STAGE" "$MODEL_SIZE" "$MODEL" "$LORA_PATH" "$SERVED_MODEL_NAME" "$ORDERED_BENCHMARKS" "$CONCURRENCIES" "$COST_DOCUMENT" "$TOKENS" "$CONTEXT_LENGTH" "$TEMPERATURE" "$TOP_P" "$MAX_SAMPLES" "$GPU_DEVICES" "$AUTO_GPU_MIN_FREE_GB" "$TP_SIZE" "$TRACE_BATCH_SIZE" "$TRACE_CLIENT_CONCURRENCY" "$BATCH_SIZE" "$CLIENT_CONCURRENCY" "$GPU_MEMORY_RESERVE_GB" "$MEM_FRACTION" "$SEARCH_GPU_HOLD_GB" "$SEARCH_GPU_HOLD_CHUNK_GB" "$POLICY_FAMILY" "$PORT" "$PROXY_PORT" "$DATASET_MAX_ATTEMPTS" "$DATASET_RETRY_DELAY_S" "$NEMO_SKILLS_DATA_DIR" "$SGLANG_PYTHON" "$EVAL_PYTHON" "$SGLANG_SRC" "$SGLANG_WORK_DIR" "$DTYPE" "$LORA_MODE" "$EXTRA_SERVER_ARGS" "$CV_FOLDS" "$SIGNAL_BINS" "$RHO_GRID_SIZE" "$REPORT_TOP" "$SPLIT_SEED" "$MAX_ROWS_PER_DATASET" "$ALLOW_PARTIAL" "$MAX_INVALID_ROW_RATE" "$VALIDATION_TRACE_RETENTION" "$COMMAND")"
     "$SGLANG_PYTHON" "$REPORTING" init --run-dir "$RUN_DIR" --settings-json "$SETTINGS_JSON"
 else
     [[ -d "$RUN_DIR" && -f "$RUN_DIR/settings.json" ]] || { echo "ERROR: invalid --run-dir" >&2; exit 1; }
     mapfile -d '' -t SAVED < <("$SGLANG_PYTHON" -c 'import json,sys
-x=json.load(open(sys.argv[1],encoding="utf-8")); keys="model_size model lora_path served_model_name benchmarks concurrencies cost_document tokens context_length temperature top_p max_samples gpu_devices auto_gpu_min_free_gb tp_size trace_batch_size trace_client_concurrency batch_size client_concurrency gpu_memory_reserve_gb mem_fraction search_gpu_hold_gb search_gpu_hold_chunk_gb port proxy_port dataset_max_attempts dataset_retry_delay_s nemo_skills_data_dir sglang_python eval_python sglang_src sglang_work_dir dtype lora_mode extra_server_args cv_folds signal_bins rho_grid_size report_top split_seed max_rows_per_dataset allow_partial max_invalid_row_rate".split()
+x=json.load(open(sys.argv[1],encoding="utf-8")); keys="model_size model lora_path served_model_name benchmarks concurrencies cost_document tokens context_length temperature top_p max_samples gpu_devices auto_gpu_min_free_gb tp_size trace_batch_size trace_client_concurrency batch_size client_concurrency gpu_memory_reserve_gb mem_fraction search_gpu_hold_gb search_gpu_hold_chunk_gb port proxy_port dataset_max_attempts dataset_retry_delay_s nemo_skills_data_dir sglang_python eval_python sglang_src sglang_work_dir dtype lora_mode extra_server_args cv_folds signal_bins rho_grid_size report_top split_seed max_rows_per_dataset allow_partial max_invalid_row_rate validation_trace_retention".split()
 for key in keys: print(str(x.get(key,"")),end="\0")' "$RUN_DIR/settings.json")
     MODEL_SIZE="${SAVED[0]}"; MODEL="${SAVED[1]}"; LORA_PATH="${SAVED[2]}"; SERVED_MODEL_NAME="${SAVED[3]}"; ORDERED_BENCHMARKS="${SAVED[4]}"; CONCURRENCIES="${SAVED[5]}"; COST_DOCUMENT="${SAVED[6]}"
     TOKENS="${SAVED[7]}"; CONTEXT_LENGTH="${SAVED[8]}"; TEMPERATURE="${SAVED[9]}"; TOP_P="${SAVED[10]}"; MAX_SAMPLES="${SAVED[11]}"; GPU_DEVICES="${SAVED[12]}"; AUTO_GPU_MIN_FREE_GB="${SAVED[13]}"; TP_SIZE="${SAVED[14]}"
     TRACE_BATCH_SIZE="${SAVED[15]}"; TRACE_CLIENT_CONCURRENCY="${SAVED[16]}"; BATCH_SIZE="${SAVED[17]}"; CLIENT_CONCURRENCY="${SAVED[18]}"; GPU_MEMORY_RESERVE_GB="${SAVED[19]}"; MEM_FRACTION="${SAVED[20]}"; SEARCH_GPU_HOLD_GB="${SAVED[21]}"; SEARCH_GPU_HOLD_CHUNK_GB="${SAVED[22]}"
     PORT="${SAVED[23]}"; PROXY_PORT="${SAVED[24]}"; DATASET_MAX_ATTEMPTS="${SAVED[25]}"; DATASET_RETRY_DELAY_S="${SAVED[26]}"; NEMO_SKILLS_DATA_DIR="${SAVED[27]}"; SGLANG_PYTHON="${SAVED[28]}"; EVAL_PYTHON="${SAVED[29]}"; SGLANG_SRC="${SAVED[30]}"; SGLANG_WORK_DIR="${SAVED[31]}"; DTYPE="${SAVED[32]}"; LORA_MODE="${SAVED[33]}"; EXTRA_SERVER_ARGS="${SAVED[34]}"
     CV_FOLDS="${SAVED[35]}"; SIGNAL_BINS="${SAVED[36]}"; RHO_GRID_SIZE="${SAVED[37]}"; REPORT_TOP="${SAVED[38]}"; SPLIT_SEED="${SAVED[39]}"; MAX_ROWS_PER_DATASET="${SAVED[40]}"; ALLOW_PARTIAL="${SAVED[41]}"; MAX_INVALID_ROW_RATE="${SAVED[42]}"
+    VALIDATION_TRACE_RETENTION="${SAVED[43]:-keep}"; [[ -n "$VALIDATION_TRACE_RETENTION" ]] || VALIDATION_TRACE_RETENTION="keep"
     arg_set --gpu-devices && GPU_DEVICES="$CLI_GPU"
     arg_set --gpu-memory-reserve-gb && GPU_MEMORY_RESERVE_GB="$CLI_RESERVE"
     arg_set --search-gpu-hold-gb && SEARCH_GPU_HOLD_GB="$CLI_HOLD"
@@ -278,6 +286,10 @@ for key in keys: print(str(x.get(key,"")),end="\0")' "$RUN_DIR/settings.json")
         ORDERED_BENCHMARKS="$CLI_BENCHMARKS"
         PERSIST_BENCHMARK_OVERRIDE="true"
     fi
+    if arg_set --validation-trace-retention; then
+        VALIDATION_TRACE_RETENTION="$CLI_VALIDATION_TRACE_RETENTION"
+        PERSIST_RETENTION_OVERRIDE="true"
+    fi
 fi
 
 command -v flock >/dev/null 2>&1 || { echo "ERROR: flock required" >&2; exit 1; }
@@ -287,6 +299,10 @@ printf 'pid=%s\nstarted=%s\n' "$$" "$(date --iso-8601=seconds)" >&9
 if [[ "$PERSIST_BENCHMARK_OVERRIDE" == true ]]; then
     BENCHMARK_UPDATE="$($SGLANG_PYTHON -c 'import json,sys; print(json.dumps({"benchmarks":sys.argv[1]},ensure_ascii=False))' "$ORDERED_BENCHMARKS")"
     "$SGLANG_PYTHON" "$REPORTING" update-settings --run-dir "$RUN_DIR" --settings-json "$BENCHMARK_UPDATE"
+fi
+if [[ "$PERSIST_RETENTION_OVERRIDE" == true ]]; then
+    RETENTION_UPDATE="$($SGLANG_PYTHON -c 'import json,sys; print(json.dumps({"validation_trace_retention":sys.argv[1]},ensure_ascii=False))' "$VALIDATION_TRACE_RETENTION")"
+    "$SGLANG_PYTHON" "$REPORTING" update-settings --run-dir "$RUN_DIR" --settings-json "$RETENTION_UPDATE"
 fi
 
 event() {
@@ -408,6 +424,51 @@ analyze_concurrency() {
     [[ "$partial" == true ]] && cmd+=(--allow-partial-datasets); "${cmd[@]}"
 }
 
+validation_part_path() {
+    local family="$1" concurrency="$2" dataset="$3"
+    printf '%s\n' "$RUN_DIR/search/validation_parts/$family/c$concurrency/$dataset.json"
+}
+
+compact_validation_valid() {
+    local path="$1" family="$2" concurrency="$3" dataset="$4"
+    [[ -s "$path" ]] && "$SGLANG_PYTHON" -c 'import json,sys
+x=json.load(open(sys.argv[1],encoding="utf-8")); family,c,dataset=sys.argv[2],int(sys.argv[3]),sys.argv[4]
+p=x.get("protocol") or {}; rows=(x.get("dynamic_policy") or {}).get("datasets") or {}
+metrics={"samples","rounds","score_token_ms_req","pure_forward_token_ms_batch","decode_tpf","mean_accept","mean_forward_ms","l8_rate","l16_rate","l32_rate"}
+fixed=x.get("fixed_baselines_same_dynamic_state") or {}
+ok=(p.get("model_size")==sys.argv[5] and p.get("policy_family")==family and int(p.get("concurrency",-1))==c and int(p.get("policy_replay_mismatches",-1))==0 and set(rows)=={dataset} and metrics<=set(rows[dataset]) and all(set((fixed.get(str(b)) or {}).get("datasets",{}))=={dataset} and metrics<=set(fixed[str(b)]["datasets"][dataset]) for b in (8,16,32)))
+raise SystemExit(0 if ok else 1)' "$path" "$family" "$concurrency" "$dataset" "$MODEL_SIZE" >/dev/null 2>&1
+}
+
+validation_done() {
+    local family="$1" concurrency="$2" dataset="$3" key="$4" trace="$5" part
+    if [[ "$VALIDATION_TRACE_RETENTION" == delete-after-analysis ]]; then
+        part="$(validation_part_path "$family" "$concurrency" "$dataset")"
+        compact_validation_valid "$part" "$family" "$concurrency" "$dataset"
+    else
+        phase_done validate "$key" "$trace"
+    fi
+}
+
+analyze_validation_part() {
+    local family="$1" concurrency="$2" dataset="$3" trace="$4" policy="$5" eval_root="$6"
+    local parts_dir="$RUN_DIR/search/validation_parts/$family/c$concurrency" part
+    part="$(validation_part_path "$family" "$concurrency" "$dataset")"
+    mkdir -p "$parts_dir"
+    local -a cmd=("$SGLANG_PYTHON" "$SEARCH" --mode validate --trace-root "$trace" --output-dir "$RUN_DIR/search" --run-dir "$RUN_DIR" --policy "$policy" --eval-root "$eval_root" --cost-document "$COST_DOCUMENT" --model-size "$MODEL_SIZE" --concurrencies "$CONCURRENCIES" --concurrency "$concurrency" --split-seed "$SPLIT_SEED" --cv-folds "$CV_FOLDS" --signal-bins "$SIGNAL_BINS" --max-invalid-row-rate "$MAX_INVALID_ROW_RATE" --allow-partial-datasets --validation-result "$part" --validation-parts-dir "$parts_dir")
+    "${cmd[@]}"
+    compact_validation_valid "$part" "$family" "$concurrency" "$dataset" || { echo "ERROR: compact validation result invalid: $part" >&2; return 1; }
+    json_valid "$RUN_DIR/search/validation_${family}_c${concurrency}.json" || { echo "ERROR: merged validation result missing for C$concurrency" >&2; return 1; }
+}
+
+merge_validation_parts_for_concurrency() {
+    local family="$1" concurrency="$2" policy="$3" partial="$4"
+    local parts_dir="$RUN_DIR/search/validation_parts/$family/c$concurrency"
+    local -a cmd=("$SGLANG_PYTHON" "$SEARCH" --mode merge-validation --output-dir "$RUN_DIR/search" --run-dir "$RUN_DIR" --policy "$policy" --cost-document "$COST_DOCUMENT" --model-size "$MODEL_SIZE" --concurrencies "$CONCURRENCIES" --concurrency "$concurrency" --validation-parts-dir "$parts_dir")
+    [[ "$partial" == true ]] && cmd+=(--allow-partial-datasets)
+    "${cmd[@]}"
+}
+
 run_validation() {
     echo "[阶段3/3] 冻结策略真实SGLang动态轨迹验证（数据集外层、C内层）"
     stop_guard "在线验证前释放"
@@ -415,22 +476,40 @@ run_validation() {
     if [[ "$family" == winner ]]; then policy="$RUN_DIR/search/policy_winner.json"; family="$($SGLANG_PYTHON -c 'import json,sys; x=json.load(open(sys.argv[1])); print(x.get("policy",x)["family"])' "$policy")"; else policy="$RUN_DIR/search/policy_$family.json"; fi
     json_valid "$policy" || { echo "ERROR: missing frozen policy $policy" >&2; return 1; }
     local -a specs cs; IFS=',' read -ra specs <<<"$ORDERED_BENCHMARKS"; IFS=',' read -ra cs <<<"$CONCURRENCIES"
-    local total=$((${#specs[@]}*${#cs[@]})) done=0 spec name concurrency key trace batch client
-    for spec in "${specs[@]}"; do name="${spec%%:*}"; for concurrency in "${cs[@]}"; do key="$name/C$concurrency/$family"; trace="$RUN_DIR/traces/validate/$family/c$concurrency/$name.jsonl"; phase_done validate "$key" "$trace" && done=$((done+1)); done; done
+    local total=$((${#specs[@]}*${#cs[@]})) done=0 spec name concurrency key trace batch client trace_bytes
+    for spec in "${specs[@]}"; do name="${spec%%:*}"; for concurrency in "${cs[@]}"; do key="$name/C$concurrency/$family"; trace="$RUN_DIR/traces/validate/$family/c$concurrency/$name.jsonl"; validation_done "$family" "$concurrency" "$name" "$key" "$trace" && done=$((done+1)); done; done
     bar "winner真实验证" "$done" "$total" "策略=$family；数据集外层/C内层"
     for spec in "${specs[@]}"; do
         name="${spec%%:*}"
         for concurrency in "${cs[@]}"; do
             key="$name/C$concurrency/$family"; trace="$RUN_DIR/traces/validate/$family/c$concurrency/$name.jsonl"
-            if phase_done validate "$key" "$trace"; then bar "winner真实验证" "$done" "$total" "复用 $name/C$concurrency"; continue; fi
+            if validation_done "$family" "$concurrency" "$name" "$key" "$trace"; then
+                if [[ "$VALIDATION_TRACE_RETENTION" == delete-after-analysis && -f "$trace" ]]; then rm -f -- "$trace"; fi
+                bar "winner真实验证" "$done" "$total" "复用 $name/C$concurrency"; continue
+            fi
             batch="$concurrency"; client="$concurrency"; [[ "$BATCH_SIZE" != auto ]] && batch="$BATCH_SIZE"; [[ "$CLIENT_CONCURRENCY" != auto ]] && client="$CLIENT_CONCURRENCY"
-            run_one_trace validate "$key" "$spec" "$trace" "$RUN_DIR/eval_runs/validate/$family/c$concurrency/$name" verify_efficiency_frozen "$concurrency" "$policy" "$batch" "$client"
+            if [[ ! -s "$trace" ]]; then
+                run_one_trace validate "$key" "$spec" "$trace" "$RUN_DIR/eval_runs/validate/$family/c$concurrency/$name" verify_efficiency_frozen "$concurrency" "$policy" "$batch" "$client"
+            fi
+            if [[ "$VALIDATION_TRACE_RETENTION" == delete-after-analysis ]]; then
+                analyze_validation_part "$family" "$concurrency" "$name" "$trace" "$policy" "$RUN_DIR/eval_runs/validate/$family/c$concurrency/$name"
+                trace_bytes="$(stat -c '%s' "$trace")"
+                rm -f -- "$trace"
+                event validate "$key" completed 0 "紧凑结果已原子保存；删除原始trace ${trace_bytes} bytes"
+            else
+                analyze_concurrency "$family" "$concurrency" true "$policy"
+            fi
             done=$((done+1)); bar "winner真实验证" "$done" "$total" "完成 $name/C$concurrency"
-            analyze_concurrency "$family" "$concurrency" true "$policy"
         done
     done
     for concurrency in "${cs[@]}"; do
-        if [[ "$ALLOW_PARTIAL" == true ]]; then analyze_concurrency "$family" "$concurrency" true "$policy"; else analyze_concurrency "$family" "$concurrency" false "$policy"; fi
+        if [[ "$VALIDATION_TRACE_RETENTION" == delete-after-analysis ]]; then
+            merge_validation_parts_for_concurrency "$family" "$concurrency" "$policy" "$ALLOW_PARTIAL"
+        elif [[ "$ALLOW_PARTIAL" == true ]]; then
+            analyze_concurrency "$family" "$concurrency" true "$policy"
+        else
+            analyze_concurrency "$family" "$concurrency" false "$policy"
+        fi
     done
     if [[ "$requested_family" == winner ]]; then
         event finalize 八集七C completed 0 "唯一winner=$family全部动态验证完成"

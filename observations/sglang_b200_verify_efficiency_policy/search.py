@@ -29,6 +29,7 @@ from sglang_b200_verify_efficiency_policy.latency_costs import (  # noqa: E402
 )
 from sglang_b200_verify_efficiency_policy.models import (  # noqa: E402
     EXPECTED_DATASETS,
+    EXPECTED_ORDER,
     FEATURES,
     SIGNALS,
     SIGNAL_BY_NAME,
@@ -860,6 +861,185 @@ def collect_official_metrics(eval_root: Optional[Path]) -> Dict[str, Any]:
     return {"datasets": result}
 
 
+SUMMARY_METRICS = (
+    "score_token_ms_req",
+    "pure_forward_token_ms_batch",
+    "decode_tpf",
+    "mean_accept",
+    "mean_forward_ms",
+    "l8_rate",
+    "l16_rate",
+    "l32_rate",
+)
+ORACLE_METRICS = (
+    "oracle_agreement",
+    "mean_local_regret",
+    "p95_local_regret",
+    "oracle_mean_efficiency",
+)
+
+
+def _macro_from_dataset_rows(
+    rows: Mapping[str, Mapping[str, Any]], concurrency: int
+) -> Dict[str, Any]:
+    if not rows:
+        raise RuntimeError("cannot aggregate empty validation dataset rows")
+    macro = {
+        key: float(np.mean([float(row[key]) for row in rows.values()]))
+        for key in SUMMARY_METRICS
+    }
+    macro.update(
+        {
+            "datasets": len(rows),
+            "samples": sum(int(row["samples"]) for row in rows.values()),
+            "rounds": sum(int(row["rounds"]) for row in rows.values()),
+            "concurrency": int(concurrency),
+            "aggregation": "sample mean within dataset, then equal dataset mean",
+            "cost_scope": "every request uses full nominal C latency",
+        }
+    )
+    return macro
+
+
+def merge_validation_parts(
+    parts_dir: Path,
+    policy: Mapping[str, Any],
+    model_size: str,
+    concurrency: int,
+    allow_partial: bool,
+) -> Dict[str, Any]:
+    """Merge small per-dataset results after their raw traces are discarded."""
+    loaded: Dict[str, Dict[str, Any]] = {}
+    for path in parts_dir.glob("*.json") if parts_dir.exists() else ():
+        try:
+            part = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"invalid validation part {path}: {exc}") from exc
+        protocol = part.get("protocol") or {}
+        dynamic_rows = (part.get("dynamic_policy") or {}).get("datasets") or {}
+        if len(dynamic_rows) != 1:
+            raise RuntimeError(f"{path}: validation part must contain one dataset")
+        dataset = next(iter(dynamic_rows))
+        if path.stem != dataset:
+            raise RuntimeError(f"{path}: filename/dataset mismatch ({dataset})")
+        if dataset in loaded:
+            raise RuntimeError(f"duplicate validation part for {dataset}")
+        if int(protocol.get("concurrency", -1)) != int(concurrency):
+            raise RuntimeError(f"{path}: concurrency mismatch")
+        if str(protocol.get("model_size")) != model_size:
+            raise RuntimeError(f"{path}: model-size mismatch")
+        if str(protocol.get("policy_family")) != str(policy["family"]):
+            raise RuntimeError(f"{path}: policy-family mismatch")
+        if int(protocol.get("policy_replay_mismatches", -1)) != 0:
+            raise RuntimeError(f"{path}: policy replay mismatch")
+        loaded[dataset] = part
+
+    present = set(loaded)
+    if not present:
+        raise RuntimeError(f"no validation parts under {parts_dir}")
+    if not allow_partial and present != EXPECTED_DATASETS:
+        raise RuntimeError(
+            "formal compact validation requires eight datasets; "
+            f"missing={sorted(EXPECTED_DATASETS-present)} "
+            f"extra={sorted(present-EXPECTED_DATASETS)}"
+        )
+    if not present <= EXPECTED_DATASETS:
+        raise RuntimeError(f"unexpected compact datasets: {sorted(present-EXPECTED_DATASETS)}")
+
+    ordered = [name for name in EXPECTED_ORDER if name in loaded]
+    dynamic_rows: Dict[str, Any] = {}
+    fixed_rows: Dict[str, Dict[str, Any]] = {str(block): {} for block in BLOCKS}
+    official_rows: Dict[str, Any] = {}
+    request_counts: Dict[str, int] = {}
+    quality_rows: Dict[str, Any] = {}
+    oracle_values: Dict[str, List[float]] = {key: [] for key in ORACLE_METRICS}
+    total_rows = 0
+    quality_original = quality_usable = quality_excluded = 0
+
+    for dataset in ordered:
+        part = loaded[dataset]
+        protocol = part["protocol"]
+        dynamic = part["dynamic_policy"]
+        dynamic_rows[dataset] = dynamic["datasets"][dataset]
+        for key in ORACLE_METRICS:
+            if dynamic.get("macro", {}).get(key) is not None:
+                oracle_values[key].append(float(dynamic["macro"][key]))
+        for block in BLOCKS:
+            fixed = part["fixed_baselines_same_dynamic_state"][str(block)]
+            fixed_rows[str(block)][dataset] = fixed["datasets"][dataset]
+        official = (part.get("official_sglang_metrics") or {}).get("datasets") or {}
+        if dataset in official:
+            official_rows[dataset] = official[dataset]
+        request_counts[dataset] = int(protocol["requests_by_dataset"][dataset])
+        total_rows += int(protocol["rows"])
+        quality = protocol.get("trace_quality") or {}
+        by_dataset = quality.get("by_dataset") or {}
+        if dataset in by_dataset:
+            quality_rows[dataset] = by_dataset[dataset]
+        quality_original += int(quality.get("rows_original", 0))
+        quality_usable += int(quality.get("rows_usable", 0))
+        quality_excluded += int(quality.get("rows_excluded", 0))
+
+    dynamic_macro = _macro_from_dataset_rows(dynamic_rows, concurrency)
+    fixed_block = baseline_block(concurrency)
+    baseline_score = float(
+        np.mean([float(row["baseline_score"]) for row in dynamic_rows.values()])
+    )
+    score = float(dynamic_macro["score_token_ms_req"])
+    dynamic_macro.update(
+        {
+            "baseline_block": fixed_block,
+            "baseline_score": baseline_score,
+            "relative_gain_vs_designated_fixed": score / baseline_score - 1.0,
+            "throughput_equivalent_time_saving": 1.0 - baseline_score / score,
+            **{
+                key: float(np.mean(values))
+                for key, values in oracle_values.items()
+                if values
+            },
+            "p95_local_regret_aggregation": (
+                "mean of per-dataset p95 in compact validation mode"
+            ),
+        }
+    )
+    fixed = {
+        str(block): {
+            "datasets": fixed_rows[str(block)],
+            "macro": _macro_from_dataset_rows(fixed_rows[str(block)], concurrency),
+        }
+        for block in BLOCKS
+    }
+    return {
+        "protocol": {
+            "model_size": model_size,
+            "concurrency": int(concurrency),
+            "datasets": ordered,
+            "dataset_count": len(ordered),
+            "requests_by_dataset": request_counts,
+            "rows": total_rows,
+            "formal_complete": present == EXPECTED_DATASETS,
+            "policy": str(policy.get("source_path", "")),
+            "policy_family": policy["family"],
+            "policy_replay_mismatches": 0,
+            "trace_quality": {
+                "rows_original": quality_original,
+                "rows_usable": quality_usable,
+                "rows_excluded": quality_excluded,
+                "excluded_rate": quality_excluded / max(1, quality_original),
+                "by_dataset": quality_rows,
+                "verifier_metrics_source": "causal_verify_logits",
+                "model_size": model_size,
+            },
+            "cost_scope": "full nominal C for every request",
+            "validation_storage": "per-dataset compact results; raw traces may be deleted",
+            "parts": [str((parts_dir / f"{name}.json").resolve()) for name in ordered],
+        },
+        "dynamic_policy": {"datasets": dynamic_rows, "macro": dynamic_macro},
+        "fixed_baselines_same_dynamic_state": fixed,
+        "official_sglang_metrics": {"datasets": official_rows},
+    }
+
+
 def validate(args: argparse.Namespace, data: TraceData) -> Dict[str, Any]:
     payload = json.loads(args.policy.read_text(encoding="utf-8"))
     policy = payload.get("policy", payload)
@@ -939,6 +1119,47 @@ def validate(args: argparse.Namespace, data: TraceData) -> Dict[str, Any]:
         "official_sglang_metrics": collect_official_metrics(args.eval_root),
     }
     family = str(policy["family"])
+    default_result = args.output_dir / f"validation_{family}_c{args.concurrency}.json"
+    result_path = args.validation_result or default_result
+    atomic_json(result_path, result)
+    published = result
+    if args.validation_parts_dir is not None:
+        published = merge_validation_parts(
+            args.validation_parts_dir,
+            {**policy, "source_path": str(args.policy)},
+            args.model_size,
+            args.concurrency,
+            allow_partial=True,
+        )
+        atomic_json(default_result, published)
+    publish_progress(
+        args.output_dir,
+        args.run_dir,
+        {
+            "stage": f"validation_c{args.concurrency}_updated",
+            "concurrency": args.concurrency,
+            "datasets": int(published["protocol"]["dataset_count"]),
+            "total_datasets": len(EXPECTED_DATASETS),
+        },
+    )
+    return published
+
+
+def merge_validation(args: argparse.Namespace) -> Dict[str, Any]:
+    if args.policy is None or args.concurrency is None:
+        raise RuntimeError("merge-validation requires --policy and --concurrency")
+    if args.validation_parts_dir is None:
+        raise RuntimeError("merge-validation requires --validation-parts-dir")
+    payload = json.loads(args.policy.read_text(encoding="utf-8"))
+    policy = payload.get("policy", payload)
+    result = merge_validation_parts(
+        args.validation_parts_dir,
+        {**policy, "source_path": str(args.policy)},
+        args.model_size,
+        args.concurrency,
+        allow_partial=args.allow_partial_datasets,
+    )
+    family = str(policy["family"])
     atomic_json(
         args.output_dir / f"validation_{family}_c{args.concurrency}.json", result
     )
@@ -946,9 +1167,9 @@ def validate(args: argparse.Namespace, data: TraceData) -> Dict[str, Any]:
         args.output_dir,
         args.run_dir,
         {
-            "stage": f"validation_c{args.concurrency}_updated",
+            "stage": f"validation_c{args.concurrency}_compact_merged",
             "concurrency": args.concurrency,
-            "datasets": len(data.dataset_names),
+            "datasets": int(result["protocol"]["dataset_count"]),
             "total_datasets": len(EXPECTED_DATASETS),
         },
     )
@@ -957,7 +1178,11 @@ def validate(args: argparse.Namespace, data: TraceData) -> Dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("search", "validate", "costs"), required=True)
+    parser.add_argument(
+        "--mode",
+        choices=("search", "validate", "merge-validation", "costs"),
+        required=True,
+    )
     parser.add_argument("--trace-root", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--run-dir", type=Path)
@@ -977,6 +1202,8 @@ def main() -> None:
     parser.add_argument("--allow-partial-datasets", action="store_true")
     parser.add_argument("--max-rows-per-dataset", type=int, default=0)
     parser.add_argument("--max-invalid-row-rate", type=float, default=0.05)
+    parser.add_argument("--validation-result", type=Path)
+    parser.add_argument("--validation-parts-dir", type=Path)
     args = parser.parse_args()
     if args.cv_folds < 2 or args.signal_bins < 2 or args.rho_grid_size < 3:
         parser.error("cv folds/bins must be >=2 and rho grid >=3")
@@ -990,6 +1217,9 @@ def main() -> None:
         snapshot(args.cost_document, args.concurrencies),
     )
     if args.mode == "costs":
+        return
+    if args.mode == "merge-validation":
+        merge_validation(args)
         return
     if args.trace_root is None:
         parser.error("--trace-root is required")

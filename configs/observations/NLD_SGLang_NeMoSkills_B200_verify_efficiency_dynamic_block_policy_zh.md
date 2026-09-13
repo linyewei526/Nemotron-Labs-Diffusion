@@ -80,7 +80,7 @@ AIME24、MMLU
 下面一行依次完成新trace采集、CPU离线搜索、GPU显存守护释放、唯一赢家的八集×七C真实验证：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage all --model-size 8b --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --concurrencies 2,4,8,16,32,64,128 --cost-document configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md --gpu-devices 0 --tp-size 1 --trace-batch-size 1 --trace-client-concurrency 1 --batch-size 1 --client-concurrency 1 --search-gpu-hold-gb 70 --search-gpu-hold-chunk-gb 1 --gpu-memory-reserve-gb 0 --mem-fraction 0.7 --tokens 8192 --context-length 10240 --temperature 0 --top-p 0.95 --cv-folds 5 --signal-bins 24 --rho-grid-size 33 --report-top 20 --dataset-max-attempts 3 --dataset-retry-delay-s 10
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage all --model-size 8b --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --concurrencies 2,4,8,16,32,64,128 --cost-document configs/NLD_B200_B8_B32_forward_sweep_20260907_zh.md --gpu-devices 0 --tp-size 1 --trace-batch-size 1 --trace-client-concurrency 1 --batch-size 1 --client-concurrency 1 --search-gpu-hold-gb 70 --search-gpu-hold-chunk-gb 1 --gpu-memory-reserve-gb 0 --mem-fraction 0.7 --tokens 8192 --context-length 10240 --temperature 0 --top-p 0.95 --cv-folds 5 --signal-bins 24 --rho-grid-size 33 --report-top 20 --dataset-max-attempts 3 --dataset-retry-delay-s 10 --validation-trace-retention delete-after-analysis
 ```
 
 本协议固定使用`--batch-size 1 --client-concurrency 1`采集动态轨迹。C只是冻结策略选择和B200延迟表`T_C(B)`的索引，不是当前A100上的物理并发度；每个request独立改变B，并按满名义C的外部延迟计费。trace探索阶段同样由`--trace-batch-size 1 --trace-client-concurrency 1`逐request采集。
@@ -89,10 +89,10 @@ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficien
 
 14B默认模型是`/data1/linyewei/models/Nemotron-Labs-Diffusion-14B`，默认LoRA是模型目录下的`linear_spec_lora`，默认单GPU、TP=1。
 
-14B必须提供同格式的14B B200 C1～128、B8/B16/B32延迟文档，不能使用8B延迟得出正式14B结论。将下面`/ABS/PATH/NLD_14B_B200_FORWARD_SWEEP.md`替换为真实文件：
+14B使用已经完成并通过审计的`configs/NLD-14B_B200_forward_sweep.md`作为B200 C1～128、B8/B16/B32延迟表，不能使用8B延迟得出正式14B结论：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage all --model-size 14b --benchmarks gsm8k:1,human-eval:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --concurrencies 2,4,8,16,32,64,128 --cost-document /ABS/PATH/NLD_14B_B200_FORWARD_SWEEP.md --gpu-devices 1 --tp-size 1 --trace-batch-size 1 --trace-client-concurrency 1 --batch-size 1 --client-concurrency 1 --search-gpu-hold-gb 48 --search-gpu-hold-chunk-gb 1 --gpu-memory-reserve-gb 0 --mem-fraction 0.55 --tokens 8192 --context-length 10240 --temperature 0 --top-p 0.95 --cv-folds 5 --signal-bins 24 --rho-grid-size 33 --report-top 20 --dataset-max-attempts 3 --dataset-retry-delay-s 10
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage all --model-size 14b --benchmarks human-eval:1,gsm8k:1,mbpp:1,math-500:1,aime25:1,gpqa:1,ifeval:1,livecodebench-cpp:1 --concurrencies 2,4,8,16,32,64,128 --cost-document configs/NLD-14B_B200_forward_sweep.md --gpu-devices 1 --tp-size 1 --trace-batch-size 1 --trace-client-concurrency 1 --batch-size 1 --client-concurrency 1 --search-gpu-hold-gb 48 --search-gpu-hold-chunk-gb 1 --gpu-memory-reserve-gb 0 --mem-fraction 0.55 --tokens 8192 --context-length 10240 --temperature 0 --top-p 0.95 --cv-folds 5 --signal-bins 24 --rho-grid-size 33 --report-top 20 --dataset-max-attempts 3 --dataset-retry-delay-s 10 --validation-trace-retention delete-after-analysis
 ```
 
 ## 6. 分阶段与断点恢复
@@ -112,13 +112,13 @@ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficien
 只验证离线赢家：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family winner
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family winner --validation-trace-retention delete-after-analysis
 ```
 
 从任意中断位置自动补齐trace、搜索和赢家验证：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage remaining --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family winner
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage remaining --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family winner --validation-trace-retention delete-after-analysis
 ```
 
 重建实时报告，不运行模型或搜索：
@@ -127,7 +127,61 @@ bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficien
 bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage report --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS
 ```
 
-断点完成条件是非空canonical trace和对应completed事件同时存在。失败尝试保存在`runtime/attempt_traces/`，不会追加到或覆盖已经提交的canonical trace。同一个run使用非阻塞文件锁，避免两个入口同时写同一结果目录。
+采集阶段的断点完成条件仍是非空canonical trace和对应completed事件同时存在。低存储验证阶段则以通过语义校验的单数据集紧凑结果作为断点；原始验证trace删除后再次执行不会重跑该“数据集×C”。失败尝试保存在`runtime/attempt_traces/`，不会追加到或覆盖已经提交的canonical trace。同一个run使用非阻塞文件锁，避免两个入口同时写同一结果目录。
+
+当前8B和14B run正在单独恢复采集。必须等待对应的`--stage collect`进程退出后，才能对同一run执行下面命令；文件锁会拒绝并发写入。以下两行分别从当前8B/14B目录补齐采集、搜索和低存储赢家验证：
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage remaining --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --gpu-devices 0 --validation-trace-retention delete-after-analysis
+```
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage remaining --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1 --validation-trace-retention delete-after-analysis
+```
+
+`--validation-trace-retention delete-after-analysis`会同步写回该run的`settings.json/settings.md`。因此命令中只需指定一次，后续同一run的断点恢复会继续采用低存储模式。
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage collect --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --gpu-devices 0
+```
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage collect --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1
+```
+
+### 6.1 当前8B/14B：采集完成后手动搜索、再手动验证
+
+如果希望明确分开CPU离线搜索和GPU全量验证，不要使用`--stage remaining`。必须先等待对应run的八集`collect`全部完成，然后分别执行本节命令。
+
+8B纯CPU离线搜索，不启动GPU显存守护：
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage search --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --search-gpu-hold-gb 0
+```
+
+14B纯CPU离线搜索，不启动GPU显存守护：
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage search --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --search-gpu-hold-gb 0
+```
+
+`--stage search`完成后会在同一run的`search/`中保存三类冻结策略、唯一winner和离线结果，并自动刷新该run的`report.md`与`progress.md`；不需要额外执行`--stage report`。`--search-gpu-hold-gb 0`表示搜索期间不创建CUDA显存守护进程，也不占用指定GPU。
+
+离线搜索完成后，8B在GPU0执行唯一winner的八数据集×七C低存储验证：
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_20260912_164023 --gpu-devices 0 --port 30000 --proxy-port 31000 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
+```
+
+14B在GPU1执行唯一winner的八数据集×七C低存储验证；端口与8B显式隔离，因此两条验证命令允许并行运行：
+
+```bash
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_14b_20260912_173452 --gpu-devices 1 --port 30001 --proxy-port 31001 --batch-size 1 --client-concurrency 1 --gpu-memory-reserve-gb 8 --policy-family winner --validation-trace-retention delete-after-analysis
+```
+
+上面以`--gpu-memory-reserve-gb 8`作为可直接运行的保守示例：每个真实验证任务启动时额外占用8GiB显存，并在该任务退出时释放；若启动前GPU剩余显存不足，应减小该值，设为`0`则禁用。它不会改变B200虚拟并发度C的成本查表逻辑。验证仍按“数据集外层、C内层”执行，每个request物理并发度为1；每完成一个“数据集×C”，程序就把统计写入`search/validation_parts/`、更新累计验证JSON和`report.md`，随后删除该组原始验证trace。
+
+验证中断后，原样重新执行对应的单行`--stage validate`命令即可续跑。已经生成并通过校验的紧凑结果会被复用，不会重新推理；尚未完成的组合继续执行。搜索、策略、验证紧凑结果、进度和最终报告始终落在各自原有时间戳run目录中。
 
 ## 7. 后续手动验证另外两类策略
 
@@ -143,18 +197,18 @@ search/policy_winner.json
 默认全流程只验证`policy_winner.json`。如之后需要单独全量启动另一个策略，无需重新采集trace或重新搜索：
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family local_ratio
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family local_ratio --validation-trace-retention delete-after-analysis
 ```
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family direct_rank
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family direct_rank --validation-trace-retention delete-after-analysis
 ```
 
 ```bash
-bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family global_fractional
+bash observations/sglang_b200_verify_efficiency_policy/eval_b200_verify_efficiency.sh --stage validate --run-dir /data/home/wly/dLLM/NLD_results/observations/sglang_b200_verify_efficiency_policy_results/b200_verify_efficiency_8b_YYYYMMDD_HHMMSS --gpu-devices 1 --policy-family global_fractional --validation-trace-retention delete-after-analysis
 ```
 
-各策略使用独立的`traces/validate/<family>/`和`eval_runs/validate/<family>/`目录，不会覆盖赢家结果。
+各策略使用独立的`traces/validate/<family>/`、`search/validation_parts/<family>/`和`eval_runs/validate/<family>/`目录，不会覆盖赢家结果。
 
 ## 8. 真实验证顺序
 
@@ -171,6 +225,26 @@ LiveCodeBench-C++: C2 -> C4 -> C8 -> C16 -> C32 -> C64 -> C128
 每完成一个“数据集×C”组合就重新生成对应C的部分汇总并更新`report.md`。因此跑完首个传入的数据集后，即可查看该数据集七种C的完整趋势。
 
 已有run目录会继续采用其`settings.json`保存的数据集顺序。如需调整旧run后续尚未执行项目的顺序，应在断点恢复命令中显式再次传入`--benchmarks`；入口会采用新顺序并同步更新`settings.json`和`settings.md`。已经完成的项目仍会按断点状态复用，不会重复运行。
+
+### 8.1 验证阶段低存储模式
+
+推荐正式验证使用`--validation-trace-retention delete-after-analysis`。它只作用于在线冻结验证，不删除`traces/explore/`中的探索trace，因为离线搜索和之后重新检索仍需要探索数据。
+
+每个“数据集×C”的执行顺序是：先把canonical原始验证JSONL写完整，再单独读取该文件计算动态策略、固定B8/B16/B32、TPF、块占比、B200理论token/ms与相对基线收益；随后原子写入并校验：
+
+```text
+search/validation_parts/<family>/c<C>/<dataset>.json
+```
+
+该紧凑文件通过模型规格、策略族、并发度、数据集、policy replay和必需统计字段校验后，程序才删除：
+
+```text
+traces/validate/<family>/c<C>/<dataset>.jsonl
+```
+
+同时会用当前已有的单数据集紧凑文件重建累计结果`search/validation_<family>_c<C>.json`，所以`report.md`仍会实时显示每集结果和当前已完成数据集的等权平均。八集全部完成后再次执行正式八集等权合并。删除前分析失败、紧凑文件不完整或校验失败时，原始JSONL会保留以便排查；如果进程在canonical trace提交后、紧凑分析前中断，续跑会直接分析已有trace，不会重跑GPU推理。
+
+默认值`keep`完整保留旧行为和全部验证trace。已有run若未记录这个新参数，也会按`keep`处理，除非续跑命令显式传入`delete-after-analysis`。
 
 ## 9. GPU显存守护
 
@@ -212,7 +286,7 @@ run_state.json
 3/3 唯一赢家真实验证
 ```
 
-CPU检索进度条按“主信号×是否启用截断状态×三种策略族”计数；在线进度条按“八数据集×七并发度×唯一赢家”计数。
+CPU检索进度条按“主信号×是否启用截断状态×三种策略族”计数；在线进度条按“八数据集×七并发度×唯一赢家”计数。低存储模式下，在线进度以通过校验的`validation_parts`计数，不依赖已经删除的原始trace。
 
 `report.md`从实验初始化起就是可读模板，并在每次事件、搜索候选推进、数据集×C完成后更新。表格包括：
 
@@ -235,6 +309,7 @@ CPU检索进度条按“主信号×是否启用截断状态×三种策略族”�
 |`--rho-grid-size`|全局分式对照自动ρ搜索的确定性补充网格数|
 |`--cv-folds`|按prompt fingerprint固定划分的request级OOF折数|
 |`--policy-family`|默认winner；也可显式验证另外两类冻结策略|
+|`--validation-trace-retention`|`keep`保留验证原始JSONL；`delete-after-analysis`在每个数据集×C的紧凑统计通过校验后立即删除原始验证trace，探索trace不受影响|
 |`--search-gpu-hold-gb`|CPU搜索期间每张指定GPU实际预占的GiB数|
 |`--gpu-memory-reserve-gb`|SGLang模型运行时额外保留的空闲GiB数|
 |`--allow-partial-datasets`|仅供smoke；允许减少数据集/C/sample/搜索行|
